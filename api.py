@@ -8,6 +8,7 @@ Data Requirements:
 - Years 1996-2005, monthly aggregation
 - China vs. Rest of World
 - HTS 10-digit level, broken out by commodity and country
+link for website explaining api call: https://www.usitc.gov/applications/dataweb/api/dataweb_query_api.html
 """
 
 import pandas as pd
