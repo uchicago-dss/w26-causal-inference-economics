@@ -15,13 +15,14 @@ import pandas as pd
 import requests
 import json
 import time
+import os
 from typing import Optional
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-TOKEN = '[YOUR_API_TOKEN_HERE]'  # Get from API tab in DataWeb (requires login)
+TOKEN = os.getenv('TRADE_API_KEY', '')  # Get from API tab in DataWeb
 BASE_URL = 'https://datawebws.usitc.gov/dataweb'
 HEADERS = {
     "Content-Type": "application/json; charset=utf-8",
