@@ -1,14 +1,6 @@
 """
 USITC DataWeb API Query Script
 For W26 Causal Inference Economics Project
-
-Data Requirements:
-- Imports for Consumption, HTS Items
-- Customs value, first unit of quantity, calculated duties
-- Years 1996-2005, monthly aggregation
-- China vs. Rest of World
-- HTS 10-digit level, broken out by commodity and country
-link for website explaining api call: https://www.usitc.gov/applications/dataweb/api/dataweb_query_api.html
 """
 
 import pandas as pd
@@ -17,27 +9,43 @@ import json
 import time
 import os
 from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-TOKEN = os.getenv('TRADE_API_KEY', '')  # Get from API tab in DataWeb
+api_key = os.getenv("TRADE_API_KEY").strip()
+if not api_key:
+    raise ValueError("TRADE_API_KEY not found in environment or .env file")
+
+TOKEN = api_key
 BASE_URL = 'https://datawebws.usitc.gov/dataweb'
 HEADERS = {
     "Content-Type": "application/json; charset=utf-8",
     "Authorization": "Bearer " + TOKEN
 }
 
-# Disable SSL warnings (DataWeb uses verify=False in their examples)
 requests.packages.urllib3.disable_warnings()
 
 # =============================================================================
-# HELPER FUNCTIONS
+# DATA MEASURE CODES - UPDATE THESE FROM THE WEB INTERFACE
+# =============================================================================
+
+DATA_MEASURES = [
+    "REPLACE_WITH_CUSTOMS_VALUE_CODE",  # customs value
+    "REPLACE_WITH_QUANTITY_CODE",       # first unit of quantity
+    "REPLACE_WITH_DUTY_CODE"            # calculated duties
+]
+CHINA_CODE = "5700"
+
+# =============================================================================
+# HELPER FUNCTIONS  
 # =============================================================================
 
 def get_columns(column_groups, prev_cols=None):
-    """Extract column names from API response."""
     if prev_cols is None:
         columns = []
     else:
@@ -53,7 +61,6 @@ def get_columns(column_groups, prev_cols=None):
 
 
 def get_data(data_groups):
-    """Extract data values from API response JSON."""
     data = []
     for row in data_groups:
         row_data = []
@@ -64,7 +71,6 @@ def get_data(data_groups):
 
 
 def run_query(query_data: dict) -> Optional[pd.DataFrame]:
-    """Execute query and return DataFrame."""
     try:
         response = requests.post(
             f"{BASE_URL}/api/v2/report2/runReport",
@@ -73,66 +79,40 @@ def run_query(query_data: dict) -> Optional[pd.DataFrame]:
             verify=False
         )
         response.raise_for_status()
-        
         result = response.json()
-        if 'dto' not in result or 'tables' not in result['dto']:
-            print("Unexpected response structure")
-            print(json.dumps(result, indent=2)[:500])
+        
+        if 'dto' not in result:
+            print(f"ERROR: {json.dumps(result, indent=2)}")
+            return None
+        if 'errors' in result['dto'] and result['dto']['errors']:
+            print(f"API ERRORS: {result['dto']['errors']}")
+            return None
+        if 'tables' not in result['dto'] or len(result['dto']['tables']) == 0:
             return None
             
-        columns = get_columns(result['dto']['tables'][0]['column_groups'])
-        data = get_data(result['dto']['tables'][0]['row_groups'][0]['rowsNew'])
-        return pd.DataFrame(data, columns=columns)
+        table = result['dto']['tables'][0]
+        if 'row_groups' not in table or len(table['row_groups']) == 0:
+            return None
+            
+        columns = get_columns(table['column_groups'])
+        data = get_data(table['row_groups'][0]['rowsNew'])
         
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {e}")
+        return pd.DataFrame(data, columns=columns) if data else None
+        
+    except Exception as e:
+        print(f"Error: {e}")
         return None
-    except (KeyError, IndexError) as e:
-        print(f"Error parsing response: {e}")
-        return None
 
 
-def get_all_countries() -> list:
-    """Retrieve list of all available countries."""
-    response = requests.get(
-        f"{BASE_URL}/api/v2/country/getAllCountries",
-        headers=HEADERS,
-        verify=False
-    )
-    return response.json().get('options', [])
-
-
-# =============================================================================
-# QUERY TEMPLATES
-# =============================================================================
-
-def build_base_query(
-    years: list,
-    countries: list,
-    data_to_report: list,
-    country_aggregation: str = "Break Out Countries",
-    commodity_aggregation: str = "Break Out Commodities",
-    granularity: str = "10"  # HTS 10-digit
-) -> dict:
-    """
-    Build query for USITC DataWeb API.
-    
-    Args:
-        years: List of years as strings, e.g. ['1996', '1997', ...]
-        countries: List of country codes, e.g. ['5700'] for China
-        data_to_report: List of data measures to retrieve
-        country_aggregation: "Aggregate Countries" or "Break Out Countries"
-        commodity_aggregation: "Aggregate Commodities" or "Break Out Commodities"
-        granularity: HTS digit level ("2", "4", "6", "8", "10")
-    """
+def build_query(years, countries, data_measures, granularity="10"):
     return {
         "savedQueryName": "",
         "savedQueryDesc": "",
         "isOwner": True,
         "runMonthly": False,
         "reportOptions": {
-            "tradeType": "Import",  # Imports for Consumption
-            "classificationSystem": "HTS"  # HTS Items
+            "tradeType": "Import",
+            "classificationSystem": "HTS"
         },
         "searchOptions": {
             "MiscGroup": {
@@ -162,7 +142,7 @@ def build_base_query(
                 }
             },
             "commodities": {
-                "aggregation": commodity_aggregation,
+                "aggregation": "Break Out Commodities",
                 "codeDisplayFormat": "YES",
                 "commodities": [],
                 "commoditiesExpanded": [],
@@ -174,18 +154,18 @@ def build_base_query(
                 "searchGranularity": None
             },
             "componentSettings": {
-                "dataToReport": data_to_report,
-                "scale": "1",  # No scaling
+                "dataToReport": data_measures,
+                "scale": "1",
                 "timeframeSelectType": "fullYears",
                 "years": years,
                 "startDate": None,
                 "endDate": None,
                 "startMonth": None,
                 "endMonth": None,
-                "yearsTimeline": "Monthly"  # Monthly aggregation
+                "yearsTimeline": "Monthly"
             },
             "countries": {
-                "aggregation": country_aggregation,
+                "aggregation": "Break Out Countries",
                 "countries": countries,
                 "countriesExpanded": [],
                 "countriesSelectType": "list" if countries else "all",
@@ -202,107 +182,15 @@ def build_base_query(
                 "exportCombineTables": False,
                 "showAllSubtotal": True,
                 "subtotalRecords": "",
-                "totalRecords": "50000",  # Increased for large dataset
+                "totalRecords": "50000",
                 "exportRawData": False
             }
         }
     }
 
 
-# =============================================================================
-# MAIN QUERY FUNCTIONS
-# =============================================================================
-
-def query_china_imports(years: list) -> Optional[pd.DataFrame]:
-    """
-    Query imports from China.
-    China country code in DataWeb is typically '5700'.
-    """
-    # Data measures for imports:
-    # CONS_VAL_MO = Customs Value 
-    # CONS_FIR_UNIT_QUANT = First Unit of Quantity
-    # CONS_DUTY_MO = Calculated Duties
-    # These codes are based on DataWeb documentation. May need to verify.
-    data_measures = [
-        "CONS_VAL_MO",           # Customs Value (monthly)
-        "CONS_FIR_UNIT_QUANT",   # First Unit of Quantity
-        "CONS_DUTY_MO"           # Calculated Duties (monthly)
-    ]
-    
-    query = build_base_query(
-        years=years,
-        countries=["5700"],  # China
-        data_to_report=data_measures,
-        country_aggregation="Break Out Countries",
-        commodity_aggregation="Break Out Commodities",
-        granularity="10"
-    )
-    
-    print("Querying China imports...")
-    return run_query(query)
-
-
-def query_row_imports(years: list, exclude_china: bool = True) -> Optional[pd.DataFrame]:
-    """
-    Query imports from Rest of World (excluding China if specified).
-    This may need to be split into multiple queries due to size.
-    """
-    data_measures = [
-        "CONS_VAL_MO",
-        "CONS_FIR_UNIT_QUANT",
-        "CONS_DUTY_MO"
-    ]
-    
-    # Get all countries first
-    all_countries = get_all_countries()
-    
-    if exclude_china:
-        # Filter out China (5700)
-        country_codes = [c['value'] for c in all_countries 
-                        if c['value'] != '5700' and c['value'] != 'all']
-    else:
-        country_codes = [c['value'] for c in all_countries if c['value'] != 'all']
-    
-    query = build_base_query(
-        years=years,
-        countries=country_codes,
-        data_to_report=data_measures,
-        country_aggregation="Break Out Countries",
-        commodity_aggregation="Break Out Commodities",
-        granularity="10"
-    )
-    
-    print(f"Querying Rest of World imports ({len(country_codes)} countries)...")
-    return run_query(query)
-
-
-def query_by_year(year: str, countries: list = None) -> Optional[pd.DataFrame]:
-    """
-    Query single year to handle large datasets.
-    Useful if full query times out or exceeds row limits.
-    """
-    data_measures = [
-        "CONS_VAL_MO",
-        "CONS_FIR_UNIT_QUANT", 
-        "CONS_DUTY_MO"
-    ]
-    
-    query = build_base_query(
-        years=[year],
-        countries=countries if countries else [],
-        data_to_report=data_measures,
-        country_aggregation="Break Out Countries",
-        commodity_aggregation="Break Out Commodities",
-        granularity="10"
-    )
-    
-    if not countries:
-        query["searchOptions"]["countries"]["countriesSelectType"] = "all"
-        query["searchOptions"]["countries"]["countriesExpanded"] = [
-            {"name": "All Countries", "value": "all"}
-        ]
-    
-    print(f"Querying year {year}...")
+def query_imports(years, countries, data_measures, granularity="10"):
+    query = build_query(years, countries, data_measures, granularity)
     return run_query(query)
 
 
@@ -310,76 +198,18 @@ def query_by_year(year: str, countries: list = None) -> Optional[pd.DataFrame]:
 # MAIN EXECUTION
 # =============================================================================
 
-def main():
-    """Main execution function."""
-    
-    # Define study period
-    years = [str(y) for y in range(1996, 2006)]  # 1996-2005
-    
-    print("=" * 60)
-    print("USITC DataWeb Query - Causal Inference Project")
-    print("=" * 60)
-    
-    # Option 1: Query China and ROW separately
-    print("\n[Option 1] Querying China imports...")
-    df_china = query_china_imports(years)
-    
-    if df_china is not None:
-        print(f"China data shape: {df_china.shape}")
-        df_china.to_csv("china_imports_1996_2005.csv", index=False)
-        print("Saved to china_imports_1996_2005.csv")
-    
-    # Option 2: Query year by year (if full query is too large)
-    print("\n[Option 2] Querying year by year...")
-    all_data = []
-    
-    for year in years:
-        df_year = query_by_year(year, countries=["5700"])  # China only
-        if df_year is not None:
-            df_year['query_year'] = year
-            all_data.append(df_year)
-            print(f"  Year {year}: {len(df_year)} rows")
-        time.sleep(1)  # Rate limiting
-    
-    if all_data:
-        df_combined = pd.concat(all_data, ignore_index=True)
-        df_combined.to_csv("china_imports_by_year.csv", index=False)
-        print(f"\nCombined data shape: {df_combined.shape}")
-        print("Saved to china_imports_by_year.csv")
-    
-    print("\n" + "=" * 60)
-    print("Query complete!")
-    print("=" * 60)
-
-
 if __name__ == "__main__":
-    main()
-
-
-# =============================================================================
-# ADDITIONAL UTILITIES
-# =============================================================================
-
-def explore_api():
-    """Utility function to explore available API options."""
-    
-    print("Fetching available countries...")
-    countries = get_all_countries()
-    df_countries = pd.DataFrame(countries)
-    print(df_countries.head(20))
-    
-    # Find China's code
-    china = [c for c in countries if 'china' in c.get('name', '').lower()]
-    print(f"\nChina entry: {china}")
-    
-    return df_countries
-
-
-def check_saved_queries():
-    """Check user's saved queries for reference."""
-    response = requests.get(
-        f"{BASE_URL}/api/v2/savedQuery/getAllSavedQueries",
-        headers=HEADERS,
-        verify=False
+    # Test query
+    df_test = query_imports(
+        years=["2005"],
+        countries=[CHINA_CODE],
+        data_measures=DATA_MEASURES,
+        granularity="2"
     )
-    return response.json()
+
+    if df_test is not None:
+        print(f"Success! Shape: {df_test.shape}")
+        print(df_test.head())
+        df_test.to_csv("test_query_result.csv", index=False)
+    else:
+        print("Query failed - check data measure codes")
