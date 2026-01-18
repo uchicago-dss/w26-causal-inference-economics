@@ -163,3 +163,228 @@ if all_data:
     print("Saved to China_1995_2005.csv")
 else:
     print("No data retrieved.")
+
+# Repeat the same process for imports for all countries
+all_data_imports = []
+
+for year in range(1995, 2006):  # 1995 to 2005 inclusive
+    for metric_code, metric_name in metrics:
+        print(f"Fetching {metric_name} for {year} (Imports All Countries)...")
+    
+requestData = {
+    "savedQueryType": "",
+    "isOwner": True,
+    "unitConversion": "0",
+    "manualConversions": [],
+    "reportOptions": {
+        "tradeType": "Import",
+        "classificationSystem": "HTS"
+    },
+    "searchOptions": {
+        "MiscGroup": {
+            "districts": {
+                "aggregation": "Aggregate District",
+                "districtGroups": {},
+                "districts": [],
+                "districtsExpanded": [
+                    {
+                        "name": "All Districts",
+                        "value": "all"
+                    }
+                ],
+                "districtsSelectType": "all"
+            },
+            "importPrograms": {
+                "aggregation": None,
+                "importPrograms": [],
+                "programsSelectType": "all"
+            },
+            "extImportPrograms": {
+                "aggregation": "Aggregate CSC",
+                "extImportPrograms": [],
+                "extImportProgramsExpanded": [],
+                "programsSelectType": "all"
+            },
+            "provisionCodes": {
+                "aggregation": "Aggregate RPCODE",
+                "provisionCodesSelectType": "all",
+                "rateProvisionCodes": [],
+                "rateProvisionCodesExpanded": [],
+                "rateProvisionGroups": {
+                    "systemGroups": []
+                }
+            }
+        },
+        "commodities": {
+            "aggregation": "Break Out Commodities",
+            "codeDisplayFormat": "YES",
+            "commodities": [],
+            "commoditiesExpanded": [],
+            "commoditiesManual": "",
+            "commodityGroups": {
+                "systemGroups": [],
+                "userGroups": []
+            },
+            "commoditySelectType": "all",
+            "granularity": "10",
+            "groupGranularity": None,
+            "searchGranularity": None,
+            "showHTSValidDetails": ""
+        },
+        "componentSettings": {
+            "dataToReport": [
+                "CONS_FIR_UNIT_QUANT",
+                "CONS_CUSTOMS_VALUE",
+                "CONS_CALC_DUTY"
+            ],
+            "scale": "1",
+            "timeframeSelectType": "fullYears",
+            "years": [
+                "2005",
+                "2004",
+                "2003",
+                "2002",
+                "2001",
+                "2000",
+                "1999",
+                "1998",
+                "1997",
+                "1996",
+                "1995"
+            ],
+            "startDate": None,
+            "endDate": None,
+            "startMonth": None,
+            "endMonth": None,
+            "yearsTimeline": "Monthly"
+        },
+        "countries": {
+            "aggregation": "Break Out Countries",
+            "countries": [],
+            "countriesExpanded": [
+                {
+                    "name": "All Countries",
+                    "value": "all"
+                }
+            ],
+            "countriesSelectType": "all",
+            "countryGroups": {
+                "systemGroups": [],
+                "userGroups": []
+            }
+        }
+    },
+    "sortingAndDataFormat": {
+        "DataSort": {
+            "columnOrder": [
+                "COUNTRY",
+                "HTS10 & DESCRIPTION",
+                "YEAR"
+            ],
+            "fullColumnOrder": [
+                {
+                    "checked": False,
+                    "disabled": False,
+                    "hasChildren": False,
+                    "name": "Countries",
+                    "value": "COUNTRY",
+                    "classificationSystem": "",
+                    "groupUUID": "",
+                    "items": [],
+                    "tradeType": ""
+                },
+                {
+                    "checked": False,
+                    "disabled": False,
+                    "hasChildren": False,
+                    "name": "HTS10 & DESCRIPTION",
+                    "value": "HTS10 & DESCRIPTION",
+                    "classificationSystem": "",
+                    "groupUUID": "",
+                    "items": [],
+                    "tradeType": ""
+                },
+                {
+                    "checked": False,
+                    "disabled": False,
+                    "hasChildren": False,
+                    "name": "Year",
+                    "value": "YEAR",
+                    "classificationSystem": "",
+                    "groupUUID": "",
+                    "items": [],
+                    "tradeType": ""
+                }
+            ],
+            "sortOrder": [
+                {
+                    "sortData": "Countries",
+                    "orderBy": "asc",
+                    "year": ""
+                },
+                {
+                    "sortData": "HTS10 & DESCRIPTION",
+                    "orderBy": "asc",
+                    "year": ""
+                },
+                {
+                    "sortData": "Year",
+                    "orderBy": "asc",
+                    "year": ""
+                }
+            ]
+        },
+        "reportCustomizations": { "exportCombineTables": False,
+            "totalRecords": "20000",
+            "exportRawData": True
+        }
+    },
+    "deletedCountryUserGroups": [],
+    "deletedCommodityUserGroups": [],
+    "deletedDistrictUserGroups": []
+}
+    
+    try:
+        response = requests.post(
+            base_url + "/api/v2/report2/runReport",
+            headers=headers,
+            json=requestData,
+            verify=False,
+        )
+
+        if response.status_code == 200:
+            resp_json = response.json()
+            
+            if resp_json.get("dto") and resp_json["dto"].get("tables"):
+                tables = resp_json["dto"]["tables"]
+
+                for table in tables:
+                    if table.get("row_groups"):
+                        for row_group in table.get("row_groups", []):
+                            for row in row_group.get("rowsNew", []):
+                                row_entries = row.get("rowEntries", [])
+                                row_values = [entry.get("value") for entry in row_entries]
+                                all_data_imports.append([year, metric_name] + row_values)
+                
+                print(f"  ✓ {year} - {metric_name} complete")
+            else:
+                print(f"  ✗ {year} - {metric_name}: No tables in response")
+        else:
+            print(f"  ✗ {year} - {metric_name}: Status {response.status_code}")
+    except Exception as e:
+        print(f"  ✗ {year} - {metric_name}: Error - {e}")
+        
+# 3. CREATE FINAL DATAFRAME FOR IMPORTS ALL COUNTRIES
+if all_data_imports:
+    # Determine column count from first row
+    n_cols = len(all_data_imports[0]) - 2  # Subtract year and metric columns
+    columns = ["Year", "Data Type"] + [f"Col_{i}" for i in range(n_cols)]
+
+    df_combined_imports = pd.DataFrame(all_data_imports, columns=columns)
+    print(f"\nSuccess! Retrieved {len(df_combined_imports)} total rows for Imports All Countries.")
+    print(df_combined_imports.head(10))
+
+    df_combined_imports.to_csv("Imports_All_Countries_1995_2005.csv", index=False)
+    print("Saved to Imports_All_Countries_1995_2005.csv")
+else:
+    print("No data retrieved for Imports All Countries.")   
