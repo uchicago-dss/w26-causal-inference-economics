@@ -19,7 +19,7 @@ headers = {
     "Authorization": "Bearer " + token,
 }
 
-# 2. COLLECT DATA ACROSS ALL YEARS AND METRICS
+# 2. COLLECT DATA ACROSS ALL YEARS AND METRICS - CHINA IMPORTS
 all_data = []
 
 metrics = [
@@ -31,129 +31,133 @@ metrics = [
 for year in range(1995, 2006):  # 1995 to 2005 inclusive
     for metric_code, metric_name in metrics:
         print(f"Fetching {metric_name} for {year}...")
-    
-    requestData = {
-        "savedQueryType": "",
-        "isOwner": True,
-        "unitConversion": "0",
-        "manualConversions": [],
-        "reportOptions": {"tradeType": "Import", "classificationSystem": "HTS"},
-        "searchOptions": {
-            "MiscGroup": {
-                "districts": {
-                    "aggregation": "Aggregate District",
-                    "districtGroups": {},
-                    "districts": [],
-                    "districtsExpanded": [{"name": "All Districts", "value": "all"}],
-                    "districtsSelectType": "all",
+        
+        requestData = {
+            "savedQueryType": "",
+            "isOwner": True,
+            "unitConversion": "0",
+            "manualConversions": [],
+            "reportOptions": {"tradeType": "Import", "classificationSystem": "HTS"},
+            "searchOptions": {
+                "MiscGroup": {
+                    "districts": {
+                        "aggregation": "Aggregate District",
+                        "districtGroups": {},
+                        "districts": [],
+                        "districtsExpanded": [{"name": "All Districts", "value": "all"}],
+                        "districtsSelectType": "all",
+                    },
+                    "importPrograms": {
+                        "aggregation": None,
+                        "importPrograms": [],
+                        "programsSelectType": "all",
+                    },
+                    "extImportPrograms": {
+                        "aggregation": "Aggregate CSC",
+                        "extImportPrograms": [],
+                        "extImportProgramsExpanded": [],
+                        "programsSelectType": "all",
+                    },
+                    "provisionCodes": {
+                        "aggregation": "Aggregate RPCODE",
+                        "provisionCodesSelectType": "all",
+                        "rateProvisionCodes": [],
+                        "rateProvisionCodesExpanded": [],
+                        "rateProvisionGroups": {"systemGroups": []},
+                    },
                 },
-                "importPrograms": {
-                    "aggregation": None,
-                    "importPrograms": [],
-                    "programsSelectType": "all",
+                "commodities": {
+                    "aggregation": "Break Out Commodities",
+                    "codeDisplayFormat": "NO",
+                    "commodities": [],
+                    "commoditiesExpanded": [],
+                    "commoditiesManual": "",
+                    "commodityGroups": {"systemGroups": [], "userGroups": []},
+                    "commoditySelectType": "all",
+                    "granularity": "10",
+                    "groupGranularity": None,
+                    "searchGranularity": None,
+                    "showHTSValidDetails": "",
                 },
-                "extImportPrograms": {
-                    "aggregation": "Aggregate CSC",
-                    "extImportPrograms": [],
-                    "extImportProgramsExpanded": [],
-                    "programsSelectType": "all",
+                "componentSettings": {
+                    "dataToReport": [metric_code],
+                    "scale": "1",
+                    "timeframeSelectType": "fullYears",
+                    "years": [str(year)],  # Single year per request
+                    "startDate": None,
+                    "endDate": None,
+                    "startMonth": None,
+                    "endMonth": None,
+                    "yearsTimeline": "Monthly",
                 },
-                "provisionCodes": {
-                    "aggregation": "Aggregate RPCODE",
-                    "provisionCodesSelectType": "all",
-                    "rateProvisionCodes": [],
-                    "rateProvisionCodesExpanded": [],
-                    "rateProvisionGroups": {"systemGroups": []},
+                "countries": {
+                    "aggregation": "Break Out Countries",
+                    "countries": ["5700"],
+                    "countriesExpanded": [{"name": "China - CN - CHN", "value": "5700"}],
+                    "countriesSelectType": "list",
+                    "countryGroups": {"systemGroups": [], "userGroups": []},
                 },
             },
-            "commodities": {
-                "aggregation": "Break Out Commodities",
-                "codeDisplayFormat": "NO",
-                "commodities": [],
-                "commoditiesExpanded": [],
-                "commoditiesManual": "",
-                "commodityGroups": {"systemGroups": [], "userGroups": []},
-                "commoditySelectType": "all",
-                "granularity": "10",
-                "groupGranularity": None,
-                "searchGranularity": None,
-                "showHTSValidDetails": "",
+            "sortingAndDataFormat": {
+                "DataSort": {
+                    "columnOrder": ["COUNTRY", "YEAR"],
+                    "fullColumnOrder": [],
+                    "sortOrder": [
+                        {"sortData": "Countries", "orderBy": "asc"},
+                        {"sortData": "Year", "orderBy": "asc"},
+                    ],
+                },
+                "reportCustomizations": {
+                    "exportCombineTables": False,
+                    "totalRecords": "20000",
+                    "exportRawData": True,
+                },
             },
-            "componentSettings": {
-                "dataToReport": [metric_code],
-                "scale": "1",
-                "timeframeSelectType": "fullYears",
-                "years": [str(year)],  # Single year per request
-                "startDate": None,
-                "endDate": None,
-                "startMonth": None,
-                "endMonth": None,
-                "yearsTimeline": "Monthly",
-            },
-            "countries": {
-                "aggregation": "Break Out Countries",
-                "countries": ["5700"],
-                "countriesExpanded": [{"name": "China - CN - CHN", "value": "5700"}],
-                "countriesSelectType": "list",
-                "countryGroups": {"systemGroups": [], "userGroups": []},
-            },
-        },
-        "sortingAndDataFormat": {
-            "DataSort": {
-                "columnOrder": ["COUNTRY", "YEAR"],
-                "fullColumnOrder": [],
-                "sortOrder": [
-                    {"sortData": "Countries", "orderBy": "asc"},
-                    {"sortData": "Year", "orderBy": "asc"},
-                ],
-            },
-            "reportCustomizations": {
-                "exportCombineTables": False,
-                "totalRecords": "20000",
-                "exportRawData": True,
-            },
-        },
-        "deletedCountryUserGroups": [],
-        "deletedCommodityUserGroups": [],
-        "deletedDistrictUserGroups": [],
-    }
+            "deletedCountryUserGroups": [],
+            "deletedCommodityUserGroups": [],
+            "deletedDistrictUserGroups": [],
+        }
 
-    try:
-        response = requests.post(
-            base_url + "/api/v2/report2/runReport",
-            headers=headers,
-            json=requestData,
-            verify=False,
-        )
+        try:
+            response = requests.post(
+                base_url + "/api/v2/report2/runReport",
+                headers=headers,
+                json=requestData,
+                verify=False,
+            )
 
-        if response.status_code == 200:
-            resp_json = response.json()
-            
-            if resp_json.get("dto") and resp_json["dto"].get("tables"):
-                tables = resp_json["dto"]["tables"]
-
-                for table in tables:
-                    if table.get("row_groups"):
-                        for row_group in table.get("row_groups", []):
-                            for row in row_group.get("rowsNew", []):
-                                row_entries = row.get("rowEntries", [])
-                                row_values = [entry.get("value") for entry in row_entries]
-                                all_data.append([year, metric_name] + row_values)
+            if response.status_code == 200:
+                resp_json = response.json()
                 
-                print(f"  ✓ {year} - {metric_name} complete")
+                if resp_json.get("dto") and resp_json["dto"].get("tables"):
+                    tables = resp_json["dto"]["tables"]
+
+                    for table in tables:
+                        if table.get("row_groups"):
+                            for row_group in table.get("row_groups", []):
+                                for row in row_group.get("rowsNew", []):
+                                    row_entries = row.get("rowEntries", [])
+                                    row_values = [entry.get("value") for entry in row_entries]
+                                    all_data.append([year, metric_name] + row_values)
+                    
+                    print(f"  ✓ {year} - {metric_name} complete")
+                else:
+                    print(f"  ✗ {year} - {metric_name}: No tables in response")
             else:
-                print(f"  ✗ {year} - {metric_name}: No tables in response")
-        else:
-            print(f"  ✗ {year} - {metric_name}: Status {response.status_code}")
+                print(f"  ✗ {year} - {metric_name}: Status {response.status_code}")
 
-    except Exception as e:
-        print(f"  ✗ {year} - {metric_name}: Error - {e}")
+        except Exception as e:
+            print(f"  ✗ {year} - {metric_name}: Error - {e}")
 
-# 3. CREATE FINAL DATAFRAME
+# 3. CREATE FINAL DATAFRAME - CHINA IMPORTS
 if all_data:
-    # Determine column count from first row
-    n_cols = len(all_data[0]) - 2  # Subtract year and metric columns
+    # Determine column count from max row length (rows may vary)
+    max_cols = max(len(row) for row in all_data)
+    n_cols = max_cols - 2  # Subtract year and metric columns
     columns = ["Year", "Data Type"] + [f"Col_{i}" for i in range(n_cols)]
+    
+    # Pad rows to match max length with None values
+    all_data = [row + [None] * (max_cols - len(row)) for row in all_data]
     
     df_combined = pd.DataFrame(all_data, columns=columns)
     print(f"\nSuccess! Retrieved {len(df_combined)} total rows.")
@@ -164,185 +168,173 @@ if all_data:
 else:
     print("No data retrieved.")
 
-# Repeat the same process for imports for all countries
+# 4. COLLECT DATA FOR IMPORTS FROM ALL COUNTRIES
 all_data_imports = []
 
 for year in range(1995, 2006):  # 1995 to 2005 inclusive
-    for metric_code, metric_name in metrics:
-        print(f"Fetching {metric_name} for {year} (Imports All Countries)...")
+    print(f"Fetching imports for {year} (All Countries)...")
     
-requestData = {
-    "savedQueryType": "",
-    "isOwner": True,
-    "unitConversion": "0",
-    "manualConversions": [],
-    "reportOptions": {
-        "tradeType": "Import",
-        "classificationSystem": "HTS"
-    },
-    "searchOptions": {
-        "MiscGroup": {
-            "districts": {
-                "aggregation": "Aggregate District",
-                "districtGroups": {},
-                "districts": [],
-                "districtsExpanded": [
+    requestData = {
+        "savedQueryType": "",
+        "isOwner": True,
+        "unitConversion": "0",
+        "manualConversions": [],
+        "reportOptions": {
+            "tradeType": "Import",
+            "classificationSystem": "HTS"
+        },
+        "searchOptions": {
+            "MiscGroup": {
+                "districts": {
+                    "aggregation": "Aggregate District",
+                    "districtGroups": {},
+                    "districts": [],
+                    "districtsExpanded": [
+                        {
+                            "name": "All Districts",
+                            "value": "all"
+                        }
+                    ],
+                    "districtsSelectType": "all"
+                },
+                "importPrograms": {
+                    "aggregation": None,
+                    "importPrograms": [],
+                    "programsSelectType": "all"
+                },
+                "extImportPrograms": {
+                    "aggregation": "Aggregate CSC",
+                    "extImportPrograms": [],
+                    "extImportProgramsExpanded": [],
+                    "programsSelectType": "all"
+                },
+                "provisionCodes": {
+                    "aggregation": "Aggregate RPCODE",
+                    "provisionCodesSelectType": "all",
+                    "rateProvisionCodes": [],
+                    "rateProvisionCodesExpanded": [],
+                    "rateProvisionGroups": {
+                        "systemGroups": []
+                    }
+                }
+            },
+            "commodities": {
+                "aggregation": "Break Out Commodities",
+                "codeDisplayFormat": "YES",
+                "commodities": [],
+                "commoditiesExpanded": [],
+                "commoditiesManual": "",
+                "commodityGroups": {
+                    "systemGroups": [],
+                    "userGroups": []
+                },
+                "commoditySelectType": "all",
+                "granularity": "10",
+                "groupGranularity": None,
+                "searchGranularity": None,
+                "showHTSValidDetails": ""
+            },
+            "componentSettings": {
+                "dataToReport": [
+                    "CONS_FIR_UNIT_QUANT",
+                    "CONS_CUSTOMS_VALUE",
+                    "CONS_CALC_DUTY"
+                ],
+                "scale": "1",
+                "timeframeSelectType": "fullYears",
+                "years": [str(year)],
+                "startDate": None,
+                "endDate": None,
+                "startMonth": None,
+                "endMonth": None,
+                "yearsTimeline": "Monthly"
+            },
+            "countries": {
+                "aggregation": "Break Out Countries",
+                "countries": [],
+                "countriesExpanded": [
                     {
-                        "name": "All Districts",
+                        "name": "All Countries",
                         "value": "all"
                     }
                 ],
-                "districtsSelectType": "all"
-            },
-            "importPrograms": {
-                "aggregation": None,
-                "importPrograms": [],
-                "programsSelectType": "all"
-            },
-            "extImportPrograms": {
-                "aggregation": "Aggregate CSC",
-                "extImportPrograms": [],
-                "extImportProgramsExpanded": [],
-                "programsSelectType": "all"
-            },
-            "provisionCodes": {
-                "aggregation": "Aggregate RPCODE",
-                "provisionCodesSelectType": "all",
-                "rateProvisionCodes": [],
-                "rateProvisionCodesExpanded": [],
-                "rateProvisionGroups": {
-                    "systemGroups": []
+                "countriesSelectType": "all",
+                "countryGroups": {
+                    "systemGroups": [],
+                    "userGroups": []
                 }
             }
         },
-        "commodities": {
-            "aggregation": "Break Out Commodities",
-            "codeDisplayFormat": "YES",
-            "commodities": [],
-            "commoditiesExpanded": [],
-            "commoditiesManual": "",
-            "commodityGroups": {
-                "systemGroups": [],
-                "userGroups": []
+        "sortingAndDataFormat": {
+            "DataSort": {
+                "columnOrder": [
+                    "COUNTRY",
+                    "HTS10 & DESCRIPTION",
+                    "YEAR"
+                ],
+                "fullColumnOrder": [
+                    {
+                        "checked": False,
+                        "disabled": False,
+                        "hasChildren": False,
+                        "name": "Countries",
+                        "value": "COUNTRY",
+                        "classificationSystem": "",
+                        "groupUUID": "",
+                        "items": [],
+                        "tradeType": ""
+                    },
+                    {
+                        "checked": False,
+                        "disabled": False,
+                        "hasChildren": False,
+                        "name": "HTS10 & DESCRIPTION",
+                        "value": "HTS10 & DESCRIPTION",
+                        "classificationSystem": "",
+                        "groupUUID": "",
+                        "items": [],
+                        "tradeType": ""
+                    },
+                    {
+                        "checked": False,
+                        "disabled": False,
+                        "hasChildren": False,
+                        "name": "Year",
+                        "value": "YEAR",
+                        "classificationSystem": "",
+                        "groupUUID": "",
+                        "items": [],
+                        "tradeType": ""
+                    }
+                ],
+                "sortOrder": [
+                    {
+                        "sortData": "Countries",
+                        "orderBy": "asc",
+                        "year": ""
+                    },
+                    {
+                        "sortData": "HTS10 & DESCRIPTION",
+                        "orderBy": "asc",
+                        "year": ""
+                    },
+                    {
+                        "sortData": "Year",
+                        "orderBy": "asc",
+                        "year": ""
+                    }
+                ]
             },
-            "commoditySelectType": "all",
-            "granularity": "10",
-            "groupGranularity": None,
-            "searchGranularity": None,
-            "showHTSValidDetails": ""
-        },
-        "componentSettings": {
-            "dataToReport": [
-                "CONS_FIR_UNIT_QUANT",
-                "CONS_CUSTOMS_VALUE",
-                "CONS_CALC_DUTY"
-            ],
-            "scale": "1",
-            "timeframeSelectType": "fullYears",
-            "years": [
-                "2005",
-                "2004",
-                "2003",
-                "2002",
-                "2001",
-                "2000",
-                "1999",
-                "1998",
-                "1997",
-                "1996",
-                "1995"
-            ],
-            "startDate": None,
-            "endDate": None,
-            "startMonth": None,
-            "endMonth": None,
-            "yearsTimeline": "Monthly"
-        },
-        "countries": {
-            "aggregation": "Break Out Countries",
-            "countries": [],
-            "countriesExpanded": [
-                {
-                    "name": "All Countries",
-                    "value": "all"
-                }
-            ],
-            "countriesSelectType": "all",
-            "countryGroups": {
-                "systemGroups": [],
-                "userGroups": []
+            "reportCustomizations": {
+                "exportCombineTables": False,
+                "totalRecords": "20000",
+                "exportRawData": True
             }
-        }
-    },
-    "sortingAndDataFormat": {
-        "DataSort": {
-            "columnOrder": [
-                "COUNTRY",
-                "HTS10 & DESCRIPTION",
-                "YEAR"
-            ],
-            "fullColumnOrder": [
-                {
-                    "checked": False,
-                    "disabled": False,
-                    "hasChildren": False,
-                    "name": "Countries",
-                    "value": "COUNTRY",
-                    "classificationSystem": "",
-                    "groupUUID": "",
-                    "items": [],
-                    "tradeType": ""
-                },
-                {
-                    "checked": False,
-                    "disabled": False,
-                    "hasChildren": False,
-                    "name": "HTS10 & DESCRIPTION",
-                    "value": "HTS10 & DESCRIPTION",
-                    "classificationSystem": "",
-                    "groupUUID": "",
-                    "items": [],
-                    "tradeType": ""
-                },
-                {
-                    "checked": False,
-                    "disabled": False,
-                    "hasChildren": False,
-                    "name": "Year",
-                    "value": "YEAR",
-                    "classificationSystem": "",
-                    "groupUUID": "",
-                    "items": [],
-                    "tradeType": ""
-                }
-            ],
-            "sortOrder": [
-                {
-                    "sortData": "Countries",
-                    "orderBy": "asc",
-                    "year": ""
-                },
-                {
-                    "sortData": "HTS10 & DESCRIPTION",
-                    "orderBy": "asc",
-                    "year": ""
-                },
-                {
-                    "sortData": "Year",
-                    "orderBy": "asc",
-                    "year": ""
-                }
-            ]
         },
-        "reportCustomizations": { "exportCombineTables": False,
-            "totalRecords": "20000",
-            "exportRawData": True
-        }
-    },
-    "deletedCountryUserGroups": [],
-    "deletedCommodityUserGroups": [],
-    "deletedDistrictUserGroups": []
-}
+        "deletedCountryUserGroups": [],
+        "deletedCommodityUserGroups": [],
+        "deletedDistrictUserGroups": []
+    }
     
     try:
         response = requests.post(
@@ -364,21 +356,25 @@ requestData = {
                             for row in row_group.get("rowsNew", []):
                                 row_entries = row.get("rowEntries", [])
                                 row_values = [entry.get("value") for entry in row_entries]
-                                all_data_imports.append([year, metric_name] + row_values)
+                                all_data_imports.append([year] + row_values)
                 
-                print(f"  ✓ {year} - {metric_name} complete")
+                print(f"  ✓ {year} complete")
             else:
-                print(f"  ✗ {year} - {metric_name}: No tables in response")
+                print(f"  ✗ {year}: No tables in response")
         else:
-            print(f"  ✗ {year} - {metric_name}: Status {response.status_code}")
+            print(f"  ✗ {year}: Status {response.status_code}")
     except Exception as e:
-        print(f"  ✗ {year} - {metric_name}: Error - {e}")
+        print(f"  ✗ {year}: Error - {e}")
         
-# 3. CREATE FINAL DATAFRAME FOR IMPORTS ALL COUNTRIES
+# 5. CREATE FINAL DATAFRAME FOR IMPORTS ALL COUNTRIES
 if all_data_imports:
-    # Determine column count from first row
-    n_cols = len(all_data_imports[0]) - 2  # Subtract year and metric columns
-    columns = ["Year", "Data Type"] + [f"Col_{i}" for i in range(n_cols)]
+    # Determine column count from max row length (rows may vary)
+    max_cols = max(len(row) for row in all_data_imports)
+    n_cols = max_cols - 1  # Subtract year column
+    columns = ["Year"] + [f"Col_{i}" for i in range(n_cols)]
+
+    # Pad rows to match max length with None values
+    all_data_imports = [row + [None] * (max_cols - len(row)) for row in all_data_imports]
 
     df_combined_imports = pd.DataFrame(all_data_imports, columns=columns)
     print(f"\nSuccess! Retrieved {len(df_combined_imports)} total rows for Imports All Countries.")
@@ -387,4 +383,4 @@ if all_data_imports:
     df_combined_imports.to_csv("Imports_All_Countries_1995_2005.csv", index=False)
     print("Saved to Imports_All_Countries_1995_2005.csv")
 else:
-    print("No data retrieved for Imports All Countries.")   
+    print("No data retrieved for Imports All Countries.")
