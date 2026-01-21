@@ -12,7 +12,7 @@ token = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIyMDA0NzIwIiwianRpIjoiZTlhZjY0MzUtYzAxYi
 base_url = "https://datawebws.usitc.gov/dataweb"
 headers = {
     "Content-Type": "application/json; charset=utf-8",
-    "Authorization": "Bearer " + token,
+    "Authorwization": "Bearer " + token,
 }
 
 # 2. THE ORIGINAL QUERY (As provided in your snippet)
