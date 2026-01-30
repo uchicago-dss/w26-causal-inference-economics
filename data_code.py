@@ -2,12 +2,16 @@ import pandas as pd
 import requests
 import json
 import urllib3
+import os
+
+api_key = os.getenv("TRADE_API_KEY")
 
 # 1. SETUP
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- PASTE YOUR TOKEN HERE ---
-token = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIyMDA0NzIwIiwianRpIjoiZTlhZjY0MzUtYzAxYi00ODU4LThhNzYtY2Y3MTE0YzcyNzIxIiwiaXNzIjoiZGF0YXdlYiIsImlhdCI6MTc2Nzk4ODExMywiZXhwIjoxNzgzNTQwMTEzfQ.5lHW_es1P-hexN0-dLitQqhgs2Kqs0hwHwYfoZZQYzrblOybL_G_1a5VJfYA_W1wMVI4_6Fu96Yopet1tWGg7A"
+
+token = api_key
 
 base_url = "https://datawebws.usitc.gov/dataweb"
 headers = {
