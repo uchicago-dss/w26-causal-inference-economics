@@ -1,0 +1,213 @@
+---
+title: "Build DiD Monthly Panel"
+format: html
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Construct DiD Panel
+
+```{r setup}
+library(dplyr)
+library(stringr)
+library(readr)
+library(haven)
+library(lubridate)
+
+```
+
+```{r build_panel}
+
+sum_or_na <- function(x) {
+  if (all(is.na(x))) {
+    NA_real_
+  } else {
+    sum(x, na.rm = TRUE)
+  }
+}
+
+clean_digit_code <- function(x, width = NULL) {
+  out <- str_replace_all(as.character(x), "[^0-9]", "")
+  if (!is.null(width)) {
+    out <- str_pad(out, width = width, side = "left", pad = "0")
+  }
+  out
+}
+
+panel_candidates <- c(
+  "panel_hts10_monthly.csv",
+  "transformed_data/panel_hts10_monthly.csv"
+)
+panel_path <- panel_candidates[file.exists(panel_candidates)][1]
+if (is.na(panel_path)) {
+  stop("Could not find panel_hts10_monthly.csv in expected paths.")
+}
+
+tar_candidates <- c(
+  "tar_val.dta",
+  "transformed_data/data_files_aer_2013/tar_val.dta"
+)
+tar_path <- tar_candidates[file.exists(tar_candidates)][1]
+if (is.na(tar_path)) {
+  stop("Could not find tar_val.dta in expected paths.")
+}
+
+cat("Using panel file:", panel_path, "\n")
+cat("Using tariff file:", tar_path, "\n")
+
+panel <- read_csv(panel_path, show_col_types = FALSE) %>%
+  mutate(
+    Country = as.character(Country),
+    hts10 = clean_digit_code(hts10, width = 10),
+    date = as.Date(date),
+    year = year(date),
+    month_num = month(date),
+    customs_value = suppressWarnings(as.numeric(customs_value)),
+    first_unit_qty = suppressWarnings(as.numeric(first_unit_qty)),
+    quantity_description = as.character(quantity_description)
+  ) %>%
+  filter(!is.na(date), !is.na(hts10), nchar(hts10) == 10)
+
+# Restrict to China panel per design.
+panel <- panel %>% filter(Country == "China")
+
+# Drop known HTS10 codes with quantity-description switches.
+problem_switch_hts10 <- c(
+  "2607000020", "2711290060", "6111206050", "6111305050", "6111905050",
+  "7115900530", "7115900590", "7115903000", "7115904000", "7115906000",
+  "9001300000"
+)
+
+rows_before_drop <- nrow(panel)
+panel <- panel %>% filter(!(hts10 %in% problem_switch_hts10))
+rows_after_drop <- nrow(panel)
+
+cat("Dropped rows from 11 problematic HTS10 codes:", rows_before_drop - rows_after_drop, "\n")
+
+# Build HS8-month panel.
+panel_hs8 <- panel %>%
+  mutate(
+    hs8 = str_sub(hts10, 1, 8),
+    unit_label = if_else(is.na(quantity_description), "", str_trim(quantity_description))
+  ) %>%
+  group_by(hs8, date, year, month_num) %>%
+  summarise(
+    customs_value = sum_or_na(customs_value),
+    unique_unit_count = n_distinct(unit_label[unit_label != ""]),
+    unit_consistent = as.integer(unique_unit_count <= 1),
+    quantity_description = case_when(
+      unique_unit_count == 1 ~ first(unit_label[unit_label != ""]),
+      TRUE ~ NA_character_
+    ),
+    first_unit_qty_hs8 = if_else(
+      unique_unit_count <= 1,
+      sum_or_na(first_unit_qty),
+      NA_real_
+    ),
+    n_hts10_in_hs8 = n_distinct(hts10),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    unit_value = if_else(
+      !is.na(first_unit_qty_hs8) & first_unit_qty_hs8 > 0,
+      customs_value / first_unit_qty_hs8,
+      NA_real_
+    )
+  )
+
+# Load tar_val.
+tar <- read_dta(tar_path) %>% as_tibble()
+required_tar_cols <- c("hs8", "year", "spread", "v")
+missing_tar_cols <- setdiff(required_tar_cols, names(tar))
+if (length(missing_tar_cols) > 0) {
+  stop(
+    "tar_val.dta is missing expected columns: ",
+    paste(missing_tar_cols, collapse = ", ")
+  )
+}
+
+cat("tar_val fields used -> code: hs8 | year: year | gap: spread | weight: v\n")
+
+tar_1999 <- tar %>%
+  transmute(
+    year = suppressWarnings(as.integer(year)),
+    code_raw = hs8,
+    gap = suppressWarnings(as.numeric(spread)),
+    weight_v = suppressWarnings(as.numeric(v))
+  ) %>%
+  filter(year == 1999) %>%
+  mutate(
+    code_digits = clean_digit_code(code_raw),
+    hs8 = str_sub(str_pad(code_digits, width = 8, side = "left", pad = "0"), 1, 8)
+  ) %>%
+  filter(!is.na(gap), !is.na(hs8), nchar(hs8) == 8)
+
+# Collapse to HS8 gap_pre (weighted by v when available, otherwise mean).
+gap_pre_hs8 <- tar_1999 %>%
+  group_by(hs8) %>%
+  summarise(
+    gap_pre = if (any(!is.na(weight_v) & weight_v > 0)) {
+      sum(gap * if_else(is.na(weight_v), 0, weight_v), na.rm = TRUE) /
+        sum(if_else(is.na(weight_v), 0, weight_v), na.rm = TRUE)
+    } else {
+      mean(gap, na.rm = TRUE)
+    },
+    .groups = "drop"
+  )
+
+# Merge gap_pre onto HS8-month trade panel.
+did_panel <- panel_hs8 %>%
+  left_join(gap_pre_hs8, by = "hs8")
+
+# DiD indicators.
+policy_date <- as.Date("2002-01-01")
+median_gap <- median(did_panel$gap_pre, na.rm = TRUE)
+
+did_panel <- did_panel %>%
+  mutate(
+    post = if_else(date >= policy_date, 1L, 0L),
+    highgap = if_else(!is.na(gap_pre) & gap_pre >= median_gap, 1L, 0L, missing = NA_integer_),
+    treated = if_else(!is.na(highgap), highgap * post, NA_integer_),
+    event_time = (year(date) - year(policy_date)) * 12 + (month(date) - month(policy_date)),
+    ln_customs_value = log1p(customs_value),
+    ln_first_unit_qty = if_else(!is.na(first_unit_qty_hs8), log1p(first_unit_qty_hs8), NA_real_),
+    ln_unit_value = if_else(!is.na(unit_value) & unit_value > 0, log(unit_value), NA_real_)
+  ) %>%
+  arrange(hs8, date)
+
+# Duplicate-key check (hs8, date).
+dup_count <- did_panel %>%
+  count(hs8, date, name = "n") %>%
+  filter(n > 1) %>%
+  nrow()
+
+# Save output.
+write_csv(did_panel, "/transformed/did_panel_monthly.csv", na = "")
+cat("\nSaved did_panel_monthly.csv\n")
+
+# Diagnostics.
+cat("\nDiagnostics\n")
+cat("Rows:", nrow(did_panel), "\n")
+cat("Unique hs8:", n_distinct(did_panel$hs8), "\n")
+cat("Date range:", as.character(min(did_panel$date, na.rm = TRUE)), "to", as.character(max(did_panel$date, na.rm = TRUE)), "\n")
+cat("Share unit_consistent==0:", mean(did_panel$unit_consistent == 0, na.rm = TRUE), "\n")
+cat("Duplicate keys (hs8, date):", dup_count, "\n")
+
+cat("\nSummary of gap_pre:\n")
+print(summary(did_panel$gap_pre))
+
+cat("\nHighgap counts:\n")
+print(table(did_panel$highgap, useNA = "ifany"))
+
+cat("\nSummary of customs_value (non-missing):\n")
+print(summary(did_panel$customs_value[!is.na(did_panel$customs_value)]))
+
+cat("\nSummary of unit_value (non-missing):\n")
+print(summary(did_panel$unit_value[!is.na(did_panel$unit_value)]))
+```
+
+```{r}
+# your work here!!
+```
