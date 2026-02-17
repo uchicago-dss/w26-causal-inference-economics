@@ -1,0 +1,94 @@
+\documentclass[12pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{hyperref}
+
+\begin{document}
+
+\section {github link}
+linked here: \url{https://github.com/uchicago-dss/w26-causal-inference-economics} \\
+send ur github username to me for collaborator access. branches should be made
+
+
+\section{what data we need}
+
+\begin{equation}
+    \begin{aligned}
+        \ln(Y_{pct}) = & \beta_1 (\text{Post}_t \times \text{China}_c \times \text{NTRGap}_p) \\
+                       & + \beta_2 (\text{Post}_t \times \text{China}_c)                      \\
+                       & + \beta_3 (\text{Post}_t \times \text{NTRGap}_p)                     \\
+                       & + \gamma_{pc} + \delta_{t} + \epsilon_{pct}
+    \end{aligned}
+\end{equation}
+
+$\beta_1$ is the coefficient of interest, representing the causal effect of eliminating uncertainty. I will elaborate on the econometric interpretation in a separate meeting. I'm showing this model to show you the data requirements:
+
+To estimate this model, we want a dataset at the \textbf{Country-Product-Time} level ($c, p, t$), elaborated below:
+
+\subsection*{1. Dependent Variable ($Y_{pct}$)}
+\begin{itemize}
+    \item \textbf{source:} USITC DataWeb (via API or Manual Export).
+          \begin{itemize}
+              \item dataweb portal: \url{https://dataweb.usitc.gov/trade/search/Import/HTS}
+              \item query we want:
+                    \begin{itemize}
+                        \item imports for consumption, hts items
+                        \item customs value, first unit of quantity, calculated duties
+                        \item full years, years 1996 - 2005, monthy aggregation
+                        \item china and all other countries (try doing both, if too large split into two queries)
+                        \item display commodities seperately, HTS 10-digit level
+                        \item order by country, hts, year
+                    \end{itemize}
+              \item example of api call: \url{https://www.usitc.gov/applications/dataweb/api/dataweb_query_api.html}
+          \end{itemize}
+    \item \textbf{dimensions:}
+          \begin{itemize}
+              \item $p$: Harmonized Tariff Schedule (HTS-10). ex: 0101110010, 0101110020...
+              \item $c$: China (Treatment) vs. Rest of World + Mexico (Control).
+              \item $t$: Monthly frequency to capture the immediate impact of the 2001 policy change.
+          \end{itemize}
+    \item \textbf{in words}: we want the monthly import volume/value for each product from China and other countries.
+    \item why log transformation? will be addressed in a future meeting
+\end{itemize}
+
+\subsection*{2. The Uncertainty Measure ($\text{NTRGap}_p$)}
+I don't think I explained this properly during the meeting so I'll clarify here.
+
+For context, NTR means normal trade relations, which is the lower tariff rate granted to WTO members. Before PNTR, China did not have NTR status so they faced higher "non-NTR" tariff rates (but circumvented by the yearly renewal of MFN (most favorable nation) status). After PNTR, they were granted NTR status and thus faced lower tariff rates. The difference between these two rates indicates how much a product is affected by the policy change, hence our measure of uncertainty. Imagine you own a toy company with 0 tariffs if MFN status is renewed, but 70 percent if it's not. Then, you might not decide to sell to the US to avoid the risk, thus decreasing the export volume for that HTS code. \\
+
+We can talk more about this after you get the data.
+
+\begin{itemize}
+    \item \textbf{actual paper:} \url{https://www.justinrpierce.com/index_files/pierce_schott_aer_2016.pdf}
+    \item \textbf{source:} Pierce \& Schott (2016) replication files \url{https://faculty.som.yale.edu/peterschott/international-trade-data/}
+    \item \textbf{calculation:} $\text{NTRGap}_p = \text{Non-NTR Rate}_p - \text{NTR Rate}_p$ (using 1999 baseline rates).
+\end{itemize}
+
+\subsection*{3. The Policy Shock ($\text{Post}_t$)}
+A binary indicator for the timing of the policy change. More nuance needed here, i.e. there's an anticipation effect since PNTR was passed in October 2000, China joined in Dec 2001, and went into effect in Jan 2002. Here is where we can add nuance by doing a dynamic event study.
+\begin{itemize}
+    \item \textbf{definition:} $\text{Post}_t = 1$ if date $\ge$ January 2002 (Effective PNTR entry), $0$ otherwise.
+\end{itemize}
+
+\subsection*{4. China Indicator ($\text{China}_c$)}
+A binary variable used to separate the Treatment Group (China) from the Control Group.
+\begin{itemize}
+    \item \textbf{definition:} $\text{China}_c = 1$ if the observation is imports from China; $0$ if it is imports from the Control Group.
+    \item \textbf{data note:} i don't think it's logistically feasible to use every country as a control, so we're using rest of world as a control. i'm going to think more about this.
+\end{itemize}
+
+
+\subsection*{5. Unobserved Effects ($\gamma_{pc}, \delta_t$)} (ai generated, lmk if you have questions, will be elaborated in future meetings)
+These are statistical controls we include in the regression to rule out alternative explanations.
+\begin{itemize}
+    \item $\gamma_{pc}$ (\textbf{Product-Country Fixed Effects}): Controls for permanent differences between countries.
+          \begin{itemize}
+              \item \textit{Example:} If Chinese toys are always cheaper than Mexican toys simply because labor is cheaper there, this term absorbs that baseline difference so we only measure the \textit{change}.
+          \end{itemize}
+    \item $\delta_t$ (\textbf{Time Fixed Effects}): Controls for global macroeconomic shocks.
+          \begin{itemize}
+              \item \textit{Example:} The 2001 recession or 9/11 reduced trade for \textit{everyone}. This term captures those global trends so we don't mistakenly attribute a global dip to trade policy.
+          \end{itemize}
+    \item \textbf{Note:} You do not need to download data for this; we will handle this using regression packages in R.
+\end{itemize}
+\end{document}

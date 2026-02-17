@@ -1,0 +1,33 @@
+                        m1_customs        m2_customs        m3_customs
+Dependent Var.:   ln_customs_value  ln_customs_value  ln_customs_value
+                                                                      
+Constant         6.924*** (0.0753)                                    
+highgap          1.191*** (0.1093)                   1.191*** (0.1096)
+post            0.9380*** (0.0565) 1.926*** (0.0424)                  
+highgap x post   0.2270** (0.0773)  0.1324* (0.0586) 0.2300** (0.0775)
+Fixed-Effects:  ------------------ ----------------- -----------------
+product                         No               Yes                No
+date                            No                No               Yes
+_______________ __________________ _________________ _________________
+S.E.: Clustered        by: product       by: product       by: product
+Observations               813,528           813,528           813,528
+R2                         0.01903           0.63041           0.02367
+Within R2                       --           0.06179           0.01213
+
+                      m4_customs
+Dependent Var.: ln_customs_value
+                                
+Constant                        
+highgap                         
+post                            
+highgap x post  0.1258* (0.0592)
+Fixed-Effects:  ----------------
+product                      Yes
+date                         Yes
+_______________ ________________
+S.E.: Clustered      by: product
+Observations             813,528
+R2                       0.64197
+Within R2                6.77e-5
+---
+Signif. codes: 0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
