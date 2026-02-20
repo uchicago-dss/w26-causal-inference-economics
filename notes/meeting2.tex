@@ -1,0 +1,179 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{url}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\title{Teaching Guide: Building a Monthly DiD Dataset from USITC Data}
+\author{Honors Thesis Workflow}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Goal}
+Build an analysis-ready monthly panel for Difference-in-Differences (DiD), where treatment is based on pre-policy NTR-gap exposure and policy timing is January 2002.
+
+\section{Required Datasets}
+\begin{tabularx}{\linewidth}{@{}L{0.42\linewidth}L{0.53\linewidth}@{}}
+  \toprule
+  File                                                    & Purpose                                                                                                                     \\
+  \midrule
+  \path{raw_data/China_Imports_1996_2005.csv}             & Main trade file from USITC DataWeb with monthly columns (January to December), product codes, values, and quantities.       \\
+  \path{transformed_data/data_files_aer_2013/tar_val.dta} & Tariff/NTR-gap source. In this project, key variables include \texttt{hs8}, \texttt{year}, \texttt{spread}, and \texttt{v}. \\
+  \path{analysis/results/data/panel_hts10_monthly.csv}    & Intermediate monthly panel at HTS10 level (created during cleaning).                                                        \\
+  \path{analysis/results/data/did_panel_monthly.csv}      & Final DiD-ready panel (you will create this).                                                                              \\
+  \bottomrule
+\end{tabularx}
+
+\section{General Tasks}
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Build a clean monthly panel from raw trade data.}
+        \begin{itemize}[leftmargin=*]
+          \item Keep product code as string (preserve leading zeros).
+          \item Reshape month columns to long format.
+          \item Construct monthly \texttt{date} (\texttt{YYYY-MM-01}).
+        \end{itemize}
+
+  \item \textbf{Keep unit logic consistent.}
+        \begin{itemize}[leftmargin=*]
+          \item Do not mix quantities across different unit descriptions.
+          \item Use \texttt{quantity\_description} from first-unit quantity records.
+          \item Drop known HTS10 codes with unit-description switches.
+        \end{itemize}
+
+  \item \textbf{Aggregate to analysis level (HS8 monthly).}
+        \begin{itemize}[leftmargin=*]
+          \item Build \((hs8, date)\) panel.
+          \item Sum \texttt{customs\_value}.
+          \item Sum quantity only when unit is consistent within \((hs8, date)\).
+        \end{itemize}
+
+  \item \textbf{Construct treatment exposure from tariffs.}
+        \begin{itemize}[leftmargin=*]
+          \item Read \texttt{tar\_val.dta}.
+          \item Use year 1999 \texttt{spread} as pre-period exposure.
+          \item Collapse to HS8 (weighted by \texttt{v} if desired) and merge to trade panel.
+        \end{itemize}
+
+  \item \textbf{Create DiD variables.}
+        \begin{itemize}[leftmargin=*]
+          \item \(\texttt{post}=1\) if date \(\ge\) 2002-01-01, else 0.
+          \item \(\texttt{highgap}=1\) if \texttt{gap\_pre} above/equal median.
+          \item \(\texttt{treated}=\texttt{highgap}\times\texttt{post}\).
+          \item \(\texttt{event\_time}\): months relative to 2002-01-01.
+        \end{itemize}
+
+  \item \textbf{Estimate models and create outputs.}
+        \begin{itemize}[leftmargin=*]
+          \item Run DiD ladder with clustered SE at product level.
+          \item Run event studies.
+          \item Export tables and figures.
+        \end{itemize}
+\end{enumerate}
+
+\section{Core DiD Specification}
+For product \(p\) in month \(t\):
+\[
+  y_{pt} = \alpha_p + \gamma_t + \beta(\text{highgap}_p \times \text{post}_t) + \varepsilon_{pt}.
+\]
+Where \(y_{pt}\) is one of:
+\begin{itemize}[leftmargin=*]
+  \item \texttt{ln\_customs\_value}
+  \item \texttt{ln\_first\_unit\_qty}
+  \item \texttt{ln\_unit\_value}
+\end{itemize}
+
+\section{Pseudocode (Data Construction)}
+\begin{verbatim}
+INPUT:
+  trade_file = raw_data/China_Imports_1996_2005.csv
+  tariff_file = transformed_data/data_files_aer_2013/tar_val.dta
+
+STEP A: Load trade panel
+  read trade data
+  keep China rows
+  ensure hts10 is 10-digit string
+  parse date
+
+STEP B: Unit quality control
+  drop known switching hts10 list
+  create hs8 = first 8 digits of hts10
+
+STEP C: Aggregate to hs8-month
+  group by (hs8, date)
+    customs_value = sum(customs_value)
+    unique_unit_count = number of distinct quantity_description
+    unit_consistent = unique_unit_count <= 1
+    first_unit_qty_hs8 = sum(first_unit_qty) only if unit_consistent
+    unit_value = customs_value / first_unit_qty_hs8 if qty > 0
+
+STEP D: Build gap_pre from tariff data
+  read tariff_file
+  filter year == 1999
+  map code to hs8
+  gap_pre_hs8 = weighted mean(spread, weights = v) by hs8
+
+STEP E: Merge and create DiD indicators
+  merge gap_pre_hs8 onto hs8-month panel
+  post = 1(date >= 2002-01-01)
+  highgap = 1(gap_pre >= median(gap_pre))
+  treated = post * highgap
+  event_time = month_distance(date, "2002-01-01")
+
+STEP F: Logs
+  ln_customs_value = log1p(customs_value)
+  ln_first_unit_qty = log1p(first_unit_qty_hs8) when not missing
+  ln_unit_value = log(unit_value) when unit_value > 0
+
+OUTPUT:
+  analysis/results/data/did_panel_monthly.csv
+\end{verbatim}
+
+\section{Pseudocode (Estimation)}
+\begin{verbatim}
+Load analysis/results/data/did_panel_monthly.csv
+product = hs8
+Filter: non-missing outcome, post, highgap, date
+
+For each outcome in [ln_customs_value, ln_first_unit_qty, ln_unit_value]:
+  m1: outcome ~ highgap * post
+  m2: outcome ~ highgap * post | product
+  m3: outcome ~ highgap * post | date
+  m4: outcome ~ highgap * post | product + date
+  cluster SE by product
+  save ladder table
+
+Event study:
+  outcome ~ i(event_time, highgap, ref = -1) | product + date
+  cluster SE by product
+  save event-study plot with x-axis labeled in calendar years
+\end{verbatim}
+
+\section{Minimum Diagnostics Checklist}
+\begin{itemize}[leftmargin=*]
+  \item No duplicate keys at \((hs8, date)\).
+  \item Date range is 1996-01 to 2005-12.
+  \item Report share of \texttt{unit\_consistent == 0}.
+  \item Report number of unique HS8 codes.
+  \item Summarize \texttt{gap\_pre}, \texttt{customs\_value}, and \texttt{unit\_value}.
+\end{itemize}
+
+\section{Practical Notes}
+\begin{itemize}[leftmargin=*]
+  \item Always preserve leading zeros in HS codes.
+  \item Never sum quantity across mixed units.
+  \item Keep every intermediate output; reproducibility matters.
+  \item If results differ across machines, verify package versions and file paths first.
+\end{itemize}
+
+\end{document}
