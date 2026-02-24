@@ -1,2 +1,6 @@
 /transformed_data/panel_hts10_monthly.csv
 /transformed_data/did_panel_monthly.csv
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
