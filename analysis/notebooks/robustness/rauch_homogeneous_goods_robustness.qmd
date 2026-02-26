@@ -1,0 +1,755 @@
+---
+title: "Rauch Homogeneous-Goods Robustness (HS8 Panel)"
+format: pdf
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Purpose
+
+This notebook addresses heterogeneous-goods concerns by restricting to HS8 products whose HS6 parent maps to Rauch class `w` (organized exchange), and dropping products classified as `r` (reference priced) or `n` (differentiated).
+
+Implementation follows the standard approach for HS8/HS10 panels:
+
+1. Build `hs6_parent = substr(hs8, 1, 6)`.
+2. Compute Rauch at HS6 using `concordance::get_proddiff`.
+3. Merge HS6 Rauch labels back to HS8 and run:
+   - Full-sample models.
+   - `w`-only restricted models.
+
+## Libraries and helpers
+
+```{r setup}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(lubridate)
+library(fixest)
+
+if (!requireNamespace("concordance", quietly = TRUE)) {
+  install.packages("concordance", repos = "https://cloud.r-project.org")
+}
+library(concordance)
+
+clean_digit_code <- function(x, width = NULL) {
+  out <- str_replace_all(as.character(x), "[^0-9]", "")
+  if (!is.null(width)) {
+    out <- str_pad(out, width = width, side = "left", pad = "0")
+  }
+  out
+}
+
+results_data_dir <- "../../results/data"
+results_tables_dir <- "../../results/tables/rauch"
+results_figures_dir <- "../../results/figures/rauch"
+
+dir.create(results_data_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(results_tables_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(results_figures_dir, recursive = TRUE, showWarnings = FALSE)
+
+did_panel_candidates <- c(
+  file.path(results_data_dir, "did_panel_monthly.csv"),
+  "../../../did_panel_monthly.csv"
+)
+did_panel_path <- did_panel_candidates[file.exists(did_panel_candidates)][1]
+if (is.na(did_panel_path)) {
+  stop("Could not find did_panel_monthly.csv in expected paths.")
+}
+```
+
+## Load panel and build HS6 parents
+
+```{r load-panel}
+df <- read_csv(did_panel_path, show_col_types = FALSE) %>%
+  mutate(
+    hs8 = clean_digit_code(hs8, width = 8),
+    hs6_parent = str_sub(hs8, 1, 6),
+    product = as.character(hs8),
+    date = as.Date(date),
+    year = if_else(is.na(year), year(date), as.integer(year)),
+    month_num = if_else(is.na(month_num), month(date), as.integer(month_num))
+  ) %>%
+  filter(
+    !is.na(product), nchar(product) == 8,
+    !is.na(hs6_parent), nchar(hs6_parent) == 6,
+    !is.na(date), !is.na(post), !is.na(highgap)
+  )
+
+cat("Rows in base panel:", nrow(df), "\n")
+cat("Unique HS8 products:", n_distinct(df$product), "\n")
+cat("Unique HS6 parents:", n_distinct(df$hs6_parent), "\n")
+cat("Using panel file:", did_panel_path, "\n")
+```
+
+## Compute Rauch at HS6 and merge back
+
+```{r rauch-map}
+hs6_unique <- sort(unique(df$hs6_parent))
+
+w_share <- suppressWarnings(
+  get_proddiff(sourcevar = hs6_unique, origin = "HS", setting = "CON", prop = "w")
+)
+r_share <- suppressWarnings(
+  get_proddiff(sourcevar = hs6_unique, origin = "HS", setting = "CON", prop = "r")
+)
+n_share <- suppressWarnings(
+  get_proddiff(sourcevar = hs6_unique, origin = "HS", setting = "CON", prop = "n")
+)
+
+rauch_hs6 <- tibble(
+  hs6_parent = hs6_unique,
+  w_share = as.numeric(w_share[hs6_unique]),
+  r_share = as.numeric(r_share[hs6_unique]),
+  n_share = as.numeric(n_share[hs6_unique])
+  ) %>%
+  mutate(
+    rauch_class = case_when(
+      is.na(w_share) | is.na(r_share) | is.na(n_share) ~ NA_character_,
+      n_share >= w_share & n_share >= r_share ~ "n",
+      w_share >= r_share & w_share >= n_share ~ "w",
+      TRUE ~ "r"
+    ),
+    keep_wr = !is.na(rauch_class) & rauch_class %in% c("w", "r"),
+    keep_w = !is.na(rauch_class) & rauch_class == "w"
+  )
+
+out_rauch_hs6 <- file.path(results_data_dir, "rauch_hs6_lookup.csv")
+write_csv(rauch_hs6, out_rauch_hs6, na = "")
+cat("Saved", out_rauch_hs6, "\n")
+
+df_rauch <- df %>%
+  left_join(rauch_hs6, by = "hs6_parent")
+
+out_did_rauch <- file.path(results_data_dir, "did_panel_monthly_rauch.csv")
+write_csv(df_rauch, out_did_rauch, na = "")
+cat("Saved", out_did_rauch, "\n")
+
+cat("\nRauch class counts (HS6 level):\n")
+print(rauch_hs6 %>% count(rauch_class, keep_w, name = "n_hs6"))
+
+cat("\nRauch class counts (observation level):\n")
+print(df_rauch %>% count(rauch_class, keep_w, name = "n_obs"))
+
+cat("\nShare of observations kept in w-only sample:\n")
+print(mean(df_rauch$keep_w, na.rm = TRUE))
+```
+
+## DiD robustness: full sample vs Rauch w/r vs Rauch w-only
+
+```{r did-robustness-functions}
+run_did_compare <- function(data, outcome_var, output_txt_wr, output_txt_w, output_txt_compare, label) {
+  data_full <- data %>% filter(!is.na(.data[[outcome_var]]))
+  data_wr <- data_full %>% filter(keep_wr)
+  data_w <- data_full %>% filter(keep_w)
+
+  did_formula <- as.formula(
+    paste0(
+      outcome_var,
+      " ~ highgap * post + i(month_num, highgap, ref = 1) | product + date"
+    )
+  )
+
+  m_full <- feols(did_formula, data = data_full, vcov = ~product)
+  m_wr <- feols(did_formula, data = data_wr, vcov = ~product)
+  m_w <- feols(did_formula, data = data_w, vcov = ~product)
+
+  cat("\n", label, "\n")
+  cat("Rows full:", nrow(data_full), "| Rows w/r:", nrow(data_wr), "| Rows w-only:", nrow(data_w), "\n")
+  comparison_table <- etable(m_full, m_wr, m_w)
+  print(comparison_table)
+
+  capture.output(
+    comparison_table,
+    file = output_txt_wr
+  )
+  capture.output(
+    comparison_table,
+    file = output_txt_w
+  )
+  capture.output(
+    comparison_table,
+    file = output_txt_compare
+  )
+  cat("Saved", output_txt_wr, "\n")
+  cat("Saved", output_txt_w, "\n")
+  cat("Saved", output_txt_compare, "\n")
+
+  list(full = m_full, wr = m_wr, w = m_w)
+}
+```
+
+```{r did-robustness-run}
+did_customs <- run_did_compare(
+  data = df_rauch,
+  outcome_var = "ln_customs_value",
+  output_txt_wr = file.path(results_tables_dir, "did_rauch_wr_ln_customs_value.txt"),
+  output_txt_w = file.path(results_tables_dir, "did_rauch_w_ln_customs_value.txt"),
+  output_txt_compare = file.path(results_tables_dir, "did_rauch_compare_ln_customs_value.txt"),
+  label = "DiD: ln(1 + customs value)"
+)
+
+did_qty <- run_did_compare(
+  data = df_rauch,
+  outcome_var = "ln_first_unit_qty",
+  output_txt_wr = file.path(results_tables_dir, "did_rauch_wr_ln_first_unit_qty.txt"),
+  output_txt_w = file.path(results_tables_dir, "did_rauch_w_ln_first_unit_qty.txt"),
+  output_txt_compare = file.path(results_tables_dir, "did_rauch_compare_ln_first_unit_qty.txt"),
+  label = "DiD: ln(1 + first unit quantity)"
+)
+
+did_uv <- run_did_compare(
+  data = df_rauch,
+  outcome_var = "ln_unit_value",
+  output_txt_wr = file.path(results_tables_dir, "did_rauch_wr_ln_unit_value.txt"),
+  output_txt_w = file.path(results_tables_dir, "did_rauch_w_ln_unit_value.txt"),
+  output_txt_compare = file.path(results_tables_dir, "did_rauch_compare_ln_unit_value.txt"),
+  label = "DiD: ln(unit value)"
+)
+```
+
+## Event-study robustness: full sample vs Rauch w-only sample
+
+```{r event-study-helpers}
+WIN_PRE <- 60
+WIN_POST <- 48
+
+plot_event_study_year <- function(model_obj, output_png, y_label, base_year = 2002) {
+  b <- coef(model_obj)
+  s <- se(model_obj)
+
+  keep <- grepl("^event_time::[-]?[0-9]+:highgap$", names(b))
+  if (!any(keep)) {
+    stop("No event-study coefficients matched expected naming pattern.")
+  }
+
+  event_time <- as.integer(sub("^event_time::(-?[0-9]+):highgap$", "\\1", names(b)[keep]))
+  est <- as.numeric(b[keep])
+  stderr <- as.numeric(s[keep])
+  ci_low <- est - 1.96 * stderr
+  ci_high <- est + 1.96 * stderr
+
+  ord <- order(event_time)
+  event_time <- event_time[ord]
+  est <- est[ord]
+  ci_low <- ci_low[ord]
+  ci_high <- ci_high[ord]
+
+  tick_min <- floor(min(event_time) / 12) * 12
+  tick_max <- ceiling(max(event_time) / 12) * 12
+  tick_at <- seq(tick_min, tick_max, by = 12)
+  tick_labels <- base_year + tick_at / 12
+
+  png(output_png, width = 1000, height = 700)
+  plot(
+    event_time, est,
+    pch = 16,
+    col = "black",
+    xlab = "Year",
+    ylab = y_label,
+    xaxt = "n",
+    ylim = range(c(ci_low, ci_high, 0), na.rm = TRUE)
+  )
+  segments(event_time, ci_low, event_time, ci_high, col = "gray40")
+  lines(event_time, est, col = "black")
+  axis(1, at = tick_at, labels = tick_labels)
+  abline(h = 0, lty = 2, col = "red")
+  dev.off()
+}
+
+run_es_w <- function(data, outcome_var, y_label, output_stem) {
+  es_full <- data %>%
+    filter(
+      !is.na(.data[[outcome_var]]),
+      !is.na(event_time),
+      event_time >= -WIN_PRE,
+      event_time <= WIN_POST
+    )
+
+  es_wr <- es_full %>% filter(keep_wr)
+  es_w <- es_full %>% filter(keep_w)
+
+  es_formula <- as.formula(
+    paste0(
+      outcome_var,
+      " ~ i(event_time, highgap, ref = -1) | product + date"
+    )
+  )
+
+  m_full <- feols(es_formula, data = es_full, vcov = ~product)
+  m_wr <- feols(es_formula, data = es_wr, vcov = ~product)
+  m_w <- feols(es_formula, data = es_w, vcov = ~product)
+
+  cat("\nEvent study:", y_label, "\n")
+  cat("Rows full:", nrow(es_full), "| Rows w/r:", nrow(es_wr), "| Rows w-only:", nrow(es_w), "\n")
+  print(etable(m_full, m_wr, m_w))
+
+  out_txt <- file.path(results_tables_dir, paste0(output_stem, "_models.txt"))
+  capture.output(etable(m_full, m_wr, m_w), file = out_txt)
+  cat("Saved", out_txt, "\n")
+
+  out_full_png <- file.path(results_figures_dir, paste0(output_stem, "_full.png"))
+  out_wr_png <- file.path(results_figures_dir, paste0(output_stem, "_wr.png"))
+  out_w_png <- file.path(results_figures_dir, paste0(output_stem, "_w.png"))
+
+  plot_event_study_year(
+    model_obj = m_full,
+    output_png = out_full_png,
+    y_label = paste0(y_label, " (full sample)")
+  )
+  plot_event_study_year(
+    model_obj = m_wr,
+    output_png = out_wr_png,
+    y_label = paste0(y_label, " (Rauch w/r)")
+  )
+  plot_event_study_year(
+    model_obj = m_w,
+    output_png = out_w_png,
+    y_label = paste0(y_label, " (Rauch w-only)")
+  )
+  cat("Saved", out_full_png, "\n")
+  cat("Saved", out_wr_png, "\n")
+  cat("Saved", out_w_png, "\n")
+
+  list(full = m_full, wr = m_wr, w = m_w)
+}
+```
+
+```{r event-study-run}
+es_customs <- run_es_w(
+  data = df_rauch,
+  outcome_var = "ln_customs_value",
+  y_label = "Effect on ln(1 + customs value)",
+  output_stem = "event_study_rauch_ln_customs_value"
+)
+
+es_qty <- run_es_w(
+  data = df_rauch,
+  outcome_var = "ln_first_unit_qty",
+  y_label = "Effect on ln(1 + first unit quantity)",
+  output_stem = "event_study_rauch_ln_first_unit_qty"
+)
+
+es_uv <- run_es_w(
+  data = df_rauch,
+  outcome_var = "ln_unit_value",
+  y_label = "Effect on ln(unit value)",
+  output_stem = "event_study_rauch_ln_unit_value"
+)
+```
+
+## Balance diagnostics (full vs w/r vs w)
+
+```{r balance-settings}
+EVENT_MIN <- -60
+EVENT_MAX <- 48
+PRE_POLICY_DATE <- as.Date("2002-01-01")
+
+samples <- list(
+  full = df_rauch,
+  wr = df_rauch %>% filter(keep_wr),
+  w = df_rauch %>% filter(keep_w)
+)
+```
+
+```{r cluster-balance-overall}
+overall_balance <- bind_rows(lapply(names(samples), function(sample_name) {
+  d <- samples[[sample_name]]
+  product_balance <- d %>% distinct(product, highgap)
+
+  n_obs <- nrow(d)
+  n_products <- nrow(product_balance)
+  n_treated_products <- sum(product_balance$highgap == 1, na.rm = TRUE)
+  n_control_products <- sum(product_balance$highgap == 0, na.rm = TRUE)
+
+  tibble(
+    sample = sample_name,
+    n_obs = n_obs,
+    n_products = n_products,
+    n_treated_products = n_treated_products,
+    n_control_products = n_control_products,
+    treated_share_product = if_else(n_products > 0, n_treated_products / n_products, NA_real_),
+    treated_share_obs = mean(d$highgap == 1, na.rm = TRUE)
+  )
+}))
+
+cat("Overall treated/control balance by cluster:\n")
+print(overall_balance)
+out_balance_overall <- file.path(results_data_dir, "rauch_balance_overall.csv")
+write_csv(overall_balance, out_balance_overall, na = "")
+cat("Saved", out_balance_overall, "\n")
+```
+
+```{r cluster-balance-event-time}
+event_balance <- bind_rows(lapply(names(samples), function(sample_name) {
+  d <- samples[[sample_name]] %>%
+    filter(
+      !is.na(event_time),
+      event_time >= EVENT_MIN,
+      event_time <= EVENT_MAX
+    )
+
+  d %>%
+    group_by(event_time) %>%
+    summarise(
+      n_obs = n(),
+      treated_rows = sum(highgap == 1, na.rm = TRUE),
+      control_rows = sum(highgap == 0, na.rm = TRUE),
+      treated_products = n_distinct(product[highgap == 1]),
+      control_products = n_distinct(product[highgap == 0]),
+      .groups = "drop"
+    ) %>%
+    mutate(sample = sample_name, .before = 1)
+})) %>%
+  arrange(sample, event_time)
+
+event_balance_flags <- event_balance %>%
+  group_by(sample) %>%
+  summarise(
+    n_bins = n(),
+    bins_treated_products_lt10 = sum(treated_products < 10, na.rm = TRUE),
+    bins_treated_products_lt5 = sum(treated_products < 5, na.rm = TRUE),
+    min_treated_products = min(treated_products, na.rm = TRUE),
+    median_treated_products = median(treated_products, na.rm = TRUE),
+    max_treated_products = max(treated_products, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+cat("Event-time treated/control product balance summary:\n")
+print(event_balance_flags)
+out_event_bins <- file.path(results_data_dir, "rauch_balance_event_time_bins.csv")
+out_event_flags <- file.path(results_data_dir, "rauch_balance_event_time_flags.csv")
+write_csv(event_balance, out_event_bins, na = "")
+write_csv(event_balance_flags, out_event_flags, na = "")
+cat("Saved", out_event_bins, "\n")
+cat("Saved", out_event_flags, "\n")
+```
+
+## Exposure balance diagnostics (`gap_pre` and `highgap`)
+
+```{r exposure-balance}
+highgap_balance <- bind_rows(lapply(names(samples), function(sample_name) {
+  d <- samples[[sample_name]]
+  product_balance <- d %>% distinct(product, highgap)
+
+  tibble(
+    sample = sample_name,
+    n_obs = nrow(d),
+    n_products = nrow(product_balance),
+    highgap_share_obs = mean(d$highgap == 1, na.rm = TRUE),
+    highgap_share_product = mean(product_balance$highgap == 1, na.rm = TRUE)
+  )
+}))
+
+gap_quantiles <- bind_rows(lapply(names(samples), function(sample_name) {
+  d <- samples[[sample_name]] %>%
+    distinct(product, gap_pre, highgap) %>%
+    filter(!is.na(gap_pre), !is.na(highgap))
+
+  d %>%
+    group_by(highgap) %>%
+    summarise(
+      sample = sample_name,
+      n_products = n(),
+      q00 = quantile(gap_pre, 0.00, na.rm = TRUE),
+      q10 = quantile(gap_pre, 0.10, na.rm = TRUE),
+      q25 = quantile(gap_pre, 0.25, na.rm = TRUE),
+      q50 = quantile(gap_pre, 0.50, na.rm = TRUE),
+      q75 = quantile(gap_pre, 0.75, na.rm = TRUE),
+      q90 = quantile(gap_pre, 0.90, na.rm = TRUE),
+      q100 = quantile(gap_pre, 1.00, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(group = if_else(highgap == 1, "highgap", "lowgap"), .before = highgap)
+})) %>%
+  arrange(sample, highgap)
+
+full_median_gap_pre <- median(df_rauch$gap_pre, na.rm = TRUE)
+
+highgap_definition_check <- bind_rows(lapply(names(samples), function(sample_name) {
+  d <- samples[[sample_name]] %>%
+    filter(!is.na(gap_pre), !is.na(highgap))
+
+  sample_median_gap_pre <- median(d$gap_pre, na.rm = TRUE)
+  implied_highgap_full_median <- as.integer(d$gap_pre >= full_median_gap_pre)
+  implied_highgap_sample_median <- as.integer(d$gap_pre >= sample_median_gap_pre)
+
+  tibble(
+    sample = sample_name,
+    full_median_gap_pre = full_median_gap_pre,
+    sample_median_gap_pre = sample_median_gap_pre,
+    mismatch_vs_full_median = sum(d$highgap != implied_highgap_full_median, na.rm = TRUE),
+    mismatch_if_recomputed_in_sample = sum(d$highgap != implied_highgap_sample_median, na.rm = TRUE),
+    n_checked = nrow(d)
+  )
+}))
+
+cat("Highgap balance summary:\n")
+print(highgap_balance)
+
+cat("\nGap_pre quantiles by highgap group:\n")
+print(gap_quantiles)
+
+cat("\nHighgap-definition check (full-median indicator should match observed highgap):\n")
+print(highgap_definition_check)
+
+out_highgap_balance <- file.path(results_data_dir, "rauch_highgap_balance.csv")
+out_gap_quantiles <- file.path(results_data_dir, "rauch_gap_pre_quantiles_by_group.csv")
+out_highgap_def <- file.path(results_data_dir, "rauch_highgap_definition_check.csv")
+write_csv(highgap_balance, out_highgap_balance, na = "")
+write_csv(gap_quantiles, out_gap_quantiles, na = "")
+write_csv(highgap_definition_check, out_highgap_def, na = "")
+cat("Saved", out_highgap_balance, "\n")
+cat("Saved", out_gap_quantiles, "\n")
+cat("Saved", out_highgap_def, "\n")
+```
+
+## Pre-2002 outcome balance diagnostics
+
+```{r preperiod-balance}
+outcome_specs <- tibble(
+  outcome_var = c("ln_customs_value", "ln_first_unit_qty", "ln_unit_value"),
+  outcome_label = c("ln(1 + customs value)", "ln(1 + first unit quantity)", "ln(unit value)")
+)
+
+preperiod_means <- bind_rows(lapply(names(samples), function(sample_name) {
+  d <- samples[[sample_name]] %>% filter(date < PRE_POLICY_DATE)
+
+  bind_rows(lapply(seq_len(nrow(outcome_specs)), function(i) {
+    outcome_var <- outcome_specs$outcome_var[[i]]
+
+    stats_by_group <- d %>%
+      filter(!is.na(.data[[outcome_var]]), !is.na(highgap)) %>%
+      group_by(highgap) %>%
+      summarise(
+        mean_outcome = mean(.data[[outcome_var]], na.rm = TRUE),
+        n_obs = n(),
+        n_products = n_distinct(product),
+        .groups = "drop"
+      ) %>%
+      mutate(group = if_else(highgap == 1, "highgap", "lowgap"))
+
+    stats_wide <- stats_by_group %>%
+      select(group, mean_outcome, n_obs, n_products) %>%
+      pivot_wider(
+        names_from = group,
+        values_from = c(mean_outcome, n_obs, n_products),
+        names_sep = "_"
+      )
+
+    mean_low <- if ("mean_outcome_lowgap" %in% names(stats_wide)) stats_wide$mean_outcome_lowgap[[1]] else NA_real_
+    mean_high <- if ("mean_outcome_highgap" %in% names(stats_wide)) stats_wide$mean_outcome_highgap[[1]] else NA_real_
+
+    tibble(
+      sample = sample_name,
+      outcome = outcome_var,
+      mean_lowgap = mean_low,
+      mean_highgap = mean_high,
+      diff_high_minus_low = mean_high - mean_low,
+      n_obs_lowgap = if ("n_obs_lowgap" %in% names(stats_wide)) stats_wide$n_obs_lowgap[[1]] else NA_real_,
+      n_obs_highgap = if ("n_obs_highgap" %in% names(stats_wide)) stats_wide$n_obs_highgap[[1]] else NA_real_,
+      n_products_lowgap = if ("n_products_lowgap" %in% names(stats_wide)) stats_wide$n_products_lowgap[[1]] else NA_real_,
+      n_products_highgap = if ("n_products_highgap" %in% names(stats_wide)) stats_wide$n_products_highgap[[1]] else NA_real_
+    )
+  }))
+}))
+
+cat("Pre-2002 means by highgap:\n")
+print(preperiod_means)
+out_preperiod_means <- file.path(results_data_dir, "rauch_pre2002_means_by_highgap.csv")
+write_csv(preperiod_means, out_preperiod_means, na = "")
+cat("Saved", out_preperiod_means, "\n")
+```
+
+```{r preperiod-month-profiles}
+plot_preperiod_month_profile <- function(outcome_var, outcome_label, output_png) {
+  profile_data <- bind_rows(lapply(names(samples), function(sample_name) {
+    d <- samples[[sample_name]] %>%
+      filter(
+        date < PRE_POLICY_DATE,
+        !is.na(.data[[outcome_var]]),
+        !is.na(highgap),
+        !is.na(month_num)
+      ) %>%
+      group_by(highgap, month_num) %>%
+      summarise(
+        mean_outcome = mean(.data[[outcome_var]], na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      mutate(sample = sample_name, .before = 1)
+
+    d
+  }))
+
+  month_diff <- profile_data %>%
+    select(sample, month_num, highgap, mean_outcome) %>%
+    mutate(group = if_else(highgap == 1, "highgap", "lowgap")) %>%
+    select(-highgap) %>%
+    pivot_wider(names_from = group, values_from = mean_outcome) %>%
+    mutate(diff_high_minus_low = highgap - lowgap, outcome = outcome_var, .before = 1)
+
+  out_month_diff <- file.path(results_data_dir, paste0("rauch_pre2002_month_diff_", outcome_var, ".csv"))
+  write_csv(month_diff, out_month_diff, na = "")
+  cat("Saved", out_month_diff, "\n")
+
+  png(output_png, width = 1400, height = 450)
+  par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+  for (sample_name in names(samples)) {
+    plot_df <- profile_data %>% filter(sample == sample_name)
+
+    grid_df <- expand.grid(highgap = c(0L, 1L), month_num = 1:12) %>%
+      left_join(plot_df, by = c("highgap", "month_num")) %>%
+      arrange(highgap, month_num)
+
+    low_vals <- grid_df %>% filter(highgap == 0L) %>% pull(mean_outcome)
+    high_vals <- grid_df %>% filter(highgap == 1L) %>% pull(mean_outcome)
+
+    plot(
+      1:12, low_vals,
+      type = "o",
+      pch = 16,
+      col = "steelblue",
+      xaxt = "n",
+      xlab = "Month",
+      ylab = outcome_label,
+      ylim = range(c(low_vals, high_vals), na.rm = TRUE),
+      main = paste("Sample:", sample_name)
+    )
+    lines(1:12, high_vals, type = "o", pch = 17, col = "firebrick")
+    axis(1, at = 1:12, labels = month.abb)
+    legend(
+      "topright",
+      legend = c("lowgap", "highgap"),
+      col = c("steelblue", "firebrick"),
+      pch = c(16, 17),
+      lty = 1,
+      bty = "n",
+      cex = 0.85
+    )
+  }
+  dev.off()
+
+  diff_summary <- month_diff %>%
+    group_by(sample, outcome) %>%
+    summarise(
+      diff_min = min(diff_high_minus_low, na.rm = TRUE),
+      diff_max = max(diff_high_minus_low, na.rm = TRUE),
+      diff_sd = sd(diff_high_minus_low, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  list(diff_summary = diff_summary)
+}
+
+month_diff_summaries <- bind_rows(lapply(seq_len(nrow(outcome_specs)), function(i) {
+  outcome_var <- outcome_specs$outcome_var[[i]]
+  outcome_label <- outcome_specs$outcome_label[[i]]
+  output_png <- file.path(results_figures_dir, paste0("rauch_pre2002_month_profile_", outcome_var, ".png"))
+
+  out <- plot_preperiod_month_profile(
+    outcome_var = outcome_var,
+    outcome_label = outcome_label,
+    output_png = output_png
+  )
+  cat("Saved", output_png, "\n")
+
+  out$diff_summary
+}))
+
+cat("Month-profile high-low difference summary:\n")
+print(month_diff_summaries)
+out_month_diff_summary <- file.path(results_data_dir, "rauch_pre2002_month_diff_summary.csv")
+write_csv(month_diff_summaries, out_month_diff_summary, na = "")
+cat("Saved", out_month_diff_summary, "\n")
+```
+
+## Event-study precision sensitivity: drop `i(month_num, highgap)`
+
+```{r es-precision-sensitivity}
+run_es_precision_diagnostics <- function(data, sample_name, outcome_var) {
+  d <- data %>%
+    filter(
+      !is.na(.data[[outcome_var]]),
+      !is.na(event_time),
+      event_time >= EVENT_MIN,
+      event_time <= EVENT_MAX
+    )
+
+  spec_formulas <- list(
+    with_month_interactions = as.formula(
+      paste0(
+        outcome_var,
+        " ~ i(event_time, highgap, ref = -1) + i(month_num, highgap, ref = 1) | product + date"
+      )
+    ),
+    event_time_only = as.formula(
+      paste0(
+        outcome_var,
+        " ~ i(event_time, highgap, ref = -1) | product + date"
+      )
+    )
+  )
+
+  bind_rows(lapply(names(spec_formulas), function(spec_name) {
+    model <- suppressWarnings(feols(spec_formulas[[spec_name]], data = d, vcov = ~product))
+
+    coef_names <- names(coef(model))
+    keep_event <- grepl("^event_time::[-]?[0-9]+:highgap$", coef_names)
+    event_se <- se(model)[keep_event]
+
+    tibble(
+      sample = sample_name,
+      outcome = outcome_var,
+      spec = spec_name,
+      n_obs = nrow(d),
+      n_products = n_distinct(d$product),
+      n_treated_products = n_distinct(d$product[d$highgap == 1]),
+      n_event_coeff = sum(keep_event),
+      n_collinear_dropped = length(model$collin.var),
+      event_se_min = min(event_se, na.rm = TRUE),
+      event_se_p10 = as.numeric(quantile(event_se, 0.10, na.rm = TRUE)),
+      event_se_median = median(event_se, na.rm = TRUE),
+      event_se_p90 = as.numeric(quantile(event_se, 0.90, na.rm = TRUE)),
+      event_se_max = max(event_se, na.rm = TRUE),
+      n_event_se_gt_100 = sum(event_se > 100, na.rm = TRUE)
+    )
+  }))
+}
+
+es_precision_diag <- bind_rows(lapply(names(samples), function(sample_name) {
+  bind_rows(lapply(outcome_specs$outcome_var, function(outcome_var) {
+    run_es_precision_diagnostics(
+      data = samples[[sample_name]],
+      sample_name = sample_name,
+      outcome_var = outcome_var
+    )
+  }))
+}))
+
+es_precision_compare <- es_precision_diag %>%
+  select(sample, outcome, spec, event_se_median, event_se_p90, n_event_se_gt_100, n_collinear_dropped) %>%
+  pivot_wider(
+    names_from = spec,
+    values_from = c(event_se_median, event_se_p90, n_event_se_gt_100, n_collinear_dropped)
+  ) %>%
+  mutate(
+    median_se_ratio_with_vs_without_month = event_se_median_with_month_interactions / event_se_median_event_time_only,
+    p90_se_ratio_with_vs_without_month = event_se_p90_with_month_interactions / event_se_p90_event_time_only
+  ) %>%
+  arrange(sample, outcome)
+
+cat("Event-study precision diagnostics by sample/spec:\n")
+print(es_precision_diag)
+
+cat("\nSE-collapse comparison (with month interactions vs event-time only):\n")
+print(es_precision_compare)
+
+out_es_precision_diag <- file.path(results_data_dir, "rauch_event_study_precision_diagnostics.csv")
+out_es_precision_compare <- file.path(results_data_dir, "rauch_event_study_precision_compare.csv")
+write_csv(es_precision_diag, out_es_precision_diag, na = "")
+write_csv(es_precision_compare, out_es_precision_compare, na = "")
+cat("Saved", out_es_precision_diag, "\n")
+cat("Saved", out_es_precision_compare, "\n")
+```

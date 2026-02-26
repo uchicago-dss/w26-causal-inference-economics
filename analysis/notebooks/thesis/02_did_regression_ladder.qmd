@@ -1,0 +1,193 @@
+---
+title: "DiD Regression Ladder"
+format: pdf
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## DiD Regression Ladder
+
+```{r did-setup}
+library(readr)
+library(dplyr)
+library(fixest)
+
+did_panel_candidates <- c(
+  "../../results/data/did_panel_monthly.csv",
+  "../../../did_panel_monthly.csv"
+)
+did_panel_path <- did_panel_candidates[file.exists(did_panel_candidates)][1]
+if (is.na(did_panel_path)) {
+  stop("Could not find did_panel_monthly.csv in expected paths.")
+}
+
+tables_dir <- "../../results/tables/did"
+dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+
+df <- read_csv(did_panel_path, show_col_types = FALSE)
+
+if (!"hs8" %in% names(df)) {
+  stop("No hs8 column found.")
+}
+
+df <- df %>%
+  mutate(
+    product = as.character(hs8),
+    date = as.Date(date)
+  ) %>%
+  filter(
+    !is.na(product), !is.na(date),
+    !is.na(post), !is.na(highgap)
+  )
+
+cat("Using panel file:", did_panel_path, "\n")
+cat("Using product column: hs8\n")
+cat("Rows in base sample:", nrow(df), "\n")
+cat("Unique products in base sample:", n_distinct(df$product), "\n")
+
+df_did_common <- df %>%
+  filter(
+    !is.na(ln_customs_value),
+    !is.na(ln_first_unit_qty),
+    !is.na(ln_unit_value),
+    !is.na(month_num)
+  )
+
+cat("Rows in common DiD sample (all outcomes observed):", nrow(df_did_common), "\n")
+cat("Unique products in common DiD sample:", n_distinct(df_did_common$product), "\n")
+```
+
+```{r did-ladder-customs}
+df_customs <- df_did_common
+cat("Rows in customs ladder sample (common sample):", nrow(df_customs), "\n")
+
+m1_customs <- feols(ln_customs_value ~ highgap * post, data = df_customs, vcov = ~product)
+m2_customs <- feols(ln_customs_value ~ highgap * post | product, data = df_customs, vcov = ~product)
+m3_customs <- feols(ln_customs_value ~ highgap * post | date, data = df_customs, vcov = ~product)
+m4_customs <- feols(ln_customs_value ~ highgap * post | product + date, data = df_customs, vcov = ~product)
+m5_customs <- feols(
+  ln_customs_value ~ highgap * post + i(month_num, highgap, ref = 1) | product + date,
+  data = df_customs,
+  vcov = ~product
+)
+
+etable(m1_customs, m2_customs, m3_customs, m4_customs, m5_customs)
+out_customs <- file.path(tables_dir, "did_ladder_ln_customs_value.txt")
+capture.output(
+  etable(m1_customs, m2_customs, m3_customs, m4_customs, m5_customs),
+  file = out_customs
+)
+cat("Saved", out_customs, "\n")
+```
+
+```{r did-ladder-quantity}
+df_qty <- df_did_common
+cat("Rows in quantity ladder sample (common sample):", nrow(df_qty), "\n")
+
+m1_qty <- feols(ln_first_unit_qty ~ highgap * post, data = df_qty, vcov = ~product)
+m2_qty <- feols(ln_first_unit_qty ~ highgap * post | product, data = df_qty, vcov = ~product)
+m3_qty <- feols(ln_first_unit_qty ~ highgap * post | date, data = df_qty, vcov = ~product)
+m4_qty <- feols(ln_first_unit_qty ~ highgap * post | product + date, data = df_qty, vcov = ~product)
+m5_qty <- feols(
+  ln_first_unit_qty ~ highgap * post + i(month_num, highgap, ref = 1) | product + date,
+  data = df_qty,
+  vcov = ~product
+)
+
+etable(m1_qty, m2_qty, m3_qty, m4_qty, m5_qty)
+out_qty <- file.path(tables_dir, "did_ladder_ln_first_unit_qty.txt")
+capture.output(
+  etable(m1_qty, m2_qty, m3_qty, m4_qty, m5_qty),
+  file = out_qty
+)
+cat("Saved", out_qty, "\n")
+```
+
+```{r did-ladder-unit-value}
+df_uv <- df_did_common
+cat("Rows in unit-value ladder sample (common sample):", nrow(df_uv), "\n")
+
+m1_uv <- feols(ln_unit_value ~ highgap * post, data = df_uv, vcov = ~product)
+m2_uv <- feols(ln_unit_value ~ highgap * post | product, data = df_uv, vcov = ~product)
+m3_uv <- feols(ln_unit_value ~ highgap * post | date, data = df_uv, vcov = ~product)
+m4_uv <- feols(ln_unit_value ~ highgap * post | product + date, data = df_uv, vcov = ~product)
+m5_uv <- feols(
+  ln_unit_value ~ highgap * post + i(month_num, highgap, ref = 1) | product + date,
+  data = df_uv,
+  vcov = ~product
+)
+
+etable(m1_uv, m2_uv, m3_uv, m4_uv, m5_uv)
+out_uv <- file.path(tables_dir, "did_ladder_ln_unit_value.txt")
+capture.output(
+  etable(m1_uv, m2_uv, m3_uv, m4_uv, m5_uv),
+  file = out_uv
+)
+cat("Saved", out_uv, "\n")
+```
+
+## Continuous-Treatment DiD (Gap Intensity)
+
+```{r did-continuous-setup}
+d_cont <- df %>%
+  filter(!is.na(gap_pre))
+
+d_unit_consistent <- d_cont %>%
+  filter(unit_consistent == 1)
+
+cat("Rows in continuous-treatment base sample:", nrow(d_cont), "\n")
+cat("Unique products in continuous-treatment base sample:", n_distinct(d_cont$product), "\n")
+cat("Rows in continuous-treatment unit-consistent sample:", nrow(d_unit_consistent), "\n")
+cat("Unique products in continuous-treatment unit-consistent sample:", n_distinct(d_unit_consistent$product), "\n")
+```
+
+```{r did-continuous-run}
+m_cv_cont <- feols(
+  ln_customs_value ~ gap_pre * post | product + date,
+  data = d_cont %>% filter(!is.na(ln_customs_value)),
+  vcov = ~product
+)
+
+m_q_cont <- feols(
+  ln_first_unit_qty ~ gap_pre * post | product + date,
+  data = d_unit_consistent %>% filter(!is.na(ln_first_unit_qty)),
+  vcov = ~product
+)
+
+m_uv_cont <- feols(
+  ln_unit_value ~ gap_pre * post | product + date,
+  data = d_unit_consistent %>% filter(!is.na(ln_unit_value)),
+  vcov = ~product
+)
+
+etable(m_cv_cont, m_q_cont, m_uv_cont)
+
+out_cont_models <- file.path(tables_dir, "did_continuous_gap_pre_models.txt")
+capture.output(
+  etable(m_cv_cont, m_q_cont, m_uv_cont),
+  file = out_cont_models
+)
+cat("Saved", out_cont_models, "\n")
+
+cont_effects <- tibble(
+  outcome = c("ln_customs_value", "ln_first_unit_qty", "ln_unit_value"),
+  coef_gap_pre_post = c(
+    coef(m_cv_cont)[["gap_pre:post"]],
+    coef(m_q_cont)[["gap_pre:post"]],
+    coef(m_uv_cont)[["gap_pre:post"]]
+  ),
+  se_gap_pre_post = c(
+    se(m_cv_cont)[["gap_pre:post"]],
+    se(m_q_cont)[["gap_pre:post"]],
+    se(m_uv_cont)[["gap_pre:post"]]
+  ),
+  n_obs = c(nobs(m_cv_cont), nobs(m_q_cont), nobs(m_uv_cont))
+)
+
+print(cont_effects)
+out_cont_effects <- file.path(tables_dir, "did_continuous_gap_pre_post_effects.csv")
+write_csv(cont_effects, out_cont_effects, na = "")
+cat("Saved", out_cont_effects, "\n")
+```
