@@ -1,0 +1,307 @@
+---
+title: "Event Study"
+format: pdf
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Event Study
+
+```{r event-study-setup}
+library(readr)
+library(dplyr)
+library(fixest)
+
+did_panel_candidates <- c(
+  "../../results/data/did_panel_monthly.csv",
+  "../../../did_panel_monthly.csv"
+)
+did_panel_path <- did_panel_candidates[file.exists(did_panel_candidates)][1]
+if (is.na(did_panel_path)) {
+  stop("Could not find did_panel_monthly.csv in expected paths.")
+}
+
+figures_dir <- "../../results/figures/event_study"
+dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
+
+tables_dir <- "../../results/tables/event_study"
+dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
+
+df <- read_csv(did_panel_path, show_col_types = FALSE) %>%
+  mutate(
+    product = as.character(hs8),
+    date = as.Date(date)
+  ) %>%
+  filter(
+    !is.na(product), !is.na(date),
+    !is.na(post), !is.na(highgap)
+  )
+
+df_customs <- df %>% filter(!is.na(ln_customs_value))
+df_qty <- df %>% filter(!is.na(ln_first_unit_qty))
+df_uv <- df %>% filter(!is.na(ln_unit_value))
+
+cat("Using panel file:", did_panel_path, "\n")
+```
+
+```{r event-study-settings}
+WIN_PRE <- 60
+WIN_POST <- 48
+
+plot_event_study_year <- function(model_obj, output_png, y_label, win_pre, win_post, term_name = "highgap", base_year = 2002) {
+  b <- coef(model_obj)
+  s <- se(model_obj)
+
+  coef_pattern <- paste0("^event_time::[-]?[0-9]+:", term_name, "$")
+  parse_pattern <- paste0("^event_time::(-?[0-9]+):", term_name, "$")
+
+  keep <- grepl(coef_pattern, names(b))
+  if (!any(keep)) {
+    stop("No event-study coefficients matched expected naming pattern.")
+  }
+
+  event_time <- as.integer(sub(parse_pattern, "\\1", names(b)[keep]))
+  est <- as.numeric(b[keep])
+  stderr <- as.numeric(s[keep])
+  ci_low <- est - 1.96 * stderr
+  ci_high <- est + 1.96 * stderr
+
+  ord <- order(event_time)
+  event_time <- event_time[ord]
+  est <- est[ord]
+  ci_low <- ci_low[ord]
+  ci_high <- ci_high[ord]
+
+  tick_min <- floor(min(event_time) / 12) * 12
+  tick_max <- ceiling(max(event_time) / 12) * 12
+  tick_at <- seq(tick_min, tick_max, by = 12)
+  tick_labels <- base_year + tick_at / 12
+
+  png(output_png, width = 1000, height = 700)
+  plot(
+    event_time, est,
+    pch = 16,
+    col = "black",
+    xlab = "Year",
+    ylab = y_label,
+    xaxt = "n",
+    ylim = range(c(ci_low, ci_high, 0), na.rm = TRUE)
+  )
+  segments(event_time, ci_low, event_time, ci_high, col = "gray40")
+  lines(event_time, est, col = "black")
+  axis(1, at = tick_at, labels = tick_labels)
+  abline(h = 0, lty = 2, col = "red")
+  dev.off()
+}
+```
+
+```{r event-study-customs}
+es_customs <- df_customs %>%
+  filter(!is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in customs event-study sample:", nrow(es_customs), "\n")
+cat("Customs event-time range:", min(es_customs$event_time), "to", max(es_customs$event_time), "\n")
+
+m_es_customs_base <- feols(
+  ln_customs_value ~ i(event_time, highgap, ref = -1) | product + date,
+  data = es_customs,
+  vcov = ~product
+)
+
+summary(m_es_customs_base)
+out_customs_base <- file.path(figures_dir, "event_study_ln_customs_value.png")
+
+plot_event_study_year(
+  model_obj = m_es_customs_base,
+  output_png = out_customs_base,
+  y_label = "Effect on ln(1 + customs value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_customs_base, "\n")
+```
+
+```{r event-study-quantity}
+es_qty <- df_qty %>%
+  filter(!is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in quantity event-study sample:", nrow(es_qty), "\n")
+cat("Quantity event-time range:", min(es_qty$event_time), "to", max(es_qty$event_time), "\n")
+
+m_es_qty_base <- feols(
+  ln_first_unit_qty ~ i(event_time, highgap, ref = -1) | product + date,
+  data = es_qty,
+  vcov = ~product
+)
+
+summary(m_es_qty_base)
+out_qty_base <- file.path(figures_dir, "event_study_ln_first_unit_qty.png")
+
+plot_event_study_year(
+  model_obj = m_es_qty_base,
+  output_png = out_qty_base,
+  y_label = "Effect on ln(1 + first unit quantity)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_qty_base, "\n")
+```
+
+```{r event-study-unit-value}
+es_uv <- df_uv %>%
+  filter(!is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in unit-value event-study sample:", nrow(es_uv), "\n")
+cat("Unit-value event-time range:", min(es_uv$event_time), "to", max(es_uv$event_time), "\n")
+
+m_es_uv_base <- feols(
+  ln_unit_value ~ i(event_time, highgap, ref = -1) | product + date,
+  data = es_uv,
+  vcov = ~product
+)
+
+summary(m_es_uv_base)
+out_uv_base <- file.path(figures_dir, "event_study_ln_unit_value.png")
+
+plot_event_study_year(
+  model_obj = m_es_uv_base,
+  output_png = out_uv_base,
+  y_label = "Effect on ln(unit value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_uv_base, "\n")
+```
+
+## Continuous-Treatment Event Study (Gap Intensity)
+
+```{r event-study-continuous-setup}
+d_cont <- df %>%
+  filter(!is.na(gap_pre))
+
+d_unit_consistent <- d_cont %>%
+  filter(unit_consistent == 1)
+
+cat("Rows in continuous-treatment base sample:", nrow(d_cont), "\n")
+cat("Unique products in continuous-treatment base sample:", n_distinct(d_cont$product), "\n")
+cat("Rows in continuous-treatment unit-consistent sample:", nrow(d_unit_consistent), "\n")
+cat("Unique products in continuous-treatment unit-consistent sample:", n_distinct(d_unit_consistent$product), "\n")
+```
+
+```{r event-study-continuous-customs}
+es_customs_cont <- d_cont %>%
+  filter(!is.na(ln_customs_value), !is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in customs continuous event-study sample:", nrow(es_customs_cont), "\n")
+cat("Customs continuous event-time range:", min(es_customs_cont$event_time), "to", max(es_customs_cont$event_time), "\n")
+
+m_es_customs_cont <- feols(
+  ln_customs_value ~ i(event_time, gap_pre, ref = -1) | product + date,
+  data = es_customs_cont,
+  vcov = ~product
+)
+
+pt_customs_cont <- wald(m_es_customs_cont, keep = "^event_time::-[0-9]+:gap_pre$")
+cat("Customs pre-trend joint test (k < 0):\n")
+print(pt_customs_cont)
+
+out_customs_cont <- file.path(figures_dir, "event_study_continuous_ln_customs_value.png")
+plot_event_study_year(
+  model_obj = m_es_customs_cont,
+  output_png = out_customs_cont,
+  y_label = "Effect per +1 NTR gap on ln(1 + customs value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_customs_cont, "\n")
+```
+
+```{r event-study-continuous-quantity}
+es_qty_cont <- d_unit_consistent %>%
+  filter(!is.na(ln_first_unit_qty), !is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in quantity continuous event-study sample:", nrow(es_qty_cont), "\n")
+cat("Quantity continuous event-time range:", min(es_qty_cont$event_time), "to", max(es_qty_cont$event_time), "\n")
+
+m_es_qty_cont <- feols(
+  ln_first_unit_qty ~ i(event_time, gap_pre, ref = -1) | product + date,
+  data = es_qty_cont,
+  vcov = ~product
+)
+
+pt_qty_cont <- wald(m_es_qty_cont, keep = "^event_time::-[0-9]+:gap_pre$")
+cat("Quantity pre-trend joint test (k < 0):\n")
+print(pt_qty_cont)
+
+out_qty_cont <- file.path(figures_dir, "event_study_continuous_ln_first_unit_qty.png")
+plot_event_study_year(
+  model_obj = m_es_qty_cont,
+  output_png = out_qty_cont,
+  y_label = "Effect per +1 NTR gap on ln(1 + first unit quantity)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_qty_cont, "\n")
+```
+
+```{r event-study-continuous-unit-value}
+es_uv_cont <- d_unit_consistent %>%
+  filter(!is.na(ln_unit_value), !is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in unit-value continuous event-study sample:", nrow(es_uv_cont), "\n")
+cat("Unit-value continuous event-time range:", min(es_uv_cont$event_time), "to", max(es_uv_cont$event_time), "\n")
+
+m_es_uv_cont <- feols(
+  ln_unit_value ~ i(event_time, gap_pre, ref = -1) | product + date,
+  data = es_uv_cont,
+  vcov = ~product
+)
+
+pt_uv_cont <- wald(m_es_uv_cont, keep = "^event_time::-[0-9]+:gap_pre$")
+cat("Unit-value pre-trend joint test (k < 0):\n")
+print(pt_uv_cont)
+
+out_uv_cont <- file.path(figures_dir, "event_study_continuous_ln_unit_value.png")
+plot_event_study_year(
+  model_obj = m_es_uv_cont,
+  output_png = out_uv_cont,
+  y_label = "Effect per +1 NTR gap on ln(unit value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_uv_cont, "\n")
+```
+
+```{r event-study-continuous-save}
+out_cont_es_models <- file.path(tables_dir, "event_study_continuous_gap_pre_models.txt")
+capture.output(
+  etable(m_es_customs_cont, m_es_qty_cont, m_es_uv_cont),
+  file = out_cont_es_models
+)
+cat("Saved", out_cont_es_models, "\n")
+
+cont_pretrend <- tibble(
+  outcome = c("ln_customs_value", "ln_first_unit_qty", "ln_unit_value"),
+  stat = c(pt_customs_cont$stat, pt_qty_cont$stat, pt_uv_cont$stat),
+  p_value = c(pt_customs_cont$p, pt_qty_cont$p, pt_uv_cont$p),
+  df1 = c(pt_customs_cont$df1, pt_qty_cont$df1, pt_uv_cont$df1),
+  df2 = c(pt_customs_cont$df2, pt_qty_cont$df2, pt_uv_cont$df2),
+  n_obs = c(nobs(m_es_customs_cont), nobs(m_es_qty_cont), nobs(m_es_uv_cont))
+)
+print(cont_pretrend)
+
+out_cont_es_pretrend <- file.path(tables_dir, "event_study_continuous_gap_pre_pretrend_tests.csv")
+write_csv(cont_pretrend, out_cont_es_pretrend, na = "")
+cat("Saved", out_cont_es_pretrend, "\n")
+```
