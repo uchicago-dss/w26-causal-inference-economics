@@ -1,0 +1,157 @@
+---
+title: "Seasonality Sanity Checks"
+format: pdf
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Seasonality Sanity Checks
+
+```{r seasonality-setup}
+library(readr)
+library(dplyr)
+library(fixest)
+
+did_panel_candidates <- c(
+  "../../results/data/did_panel_monthly.csv",
+  "../../../did_panel_monthly.csv"
+)
+did_panel_path <- did_panel_candidates[file.exists(did_panel_candidates)][1]
+if (is.na(did_panel_path)) {
+  stop("Could not find did_panel_monthly.csv in expected paths.")
+}
+
+figures_dir <- "../../results/figures/seasonality"
+dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
+
+df <- read_csv(did_panel_path, show_col_types = FALSE) %>%
+  mutate(
+    product = as.character(hs8),
+    date = as.Date(date)
+  ) %>%
+  filter(
+    !is.na(product), !is.na(date),
+    !is.na(post), !is.na(highgap)
+  )
+
+df_qty <- df %>% filter(!is.na(ln_first_unit_qty))
+df_uv <- df %>% filter(!is.na(ln_unit_value))
+
+cat("Using panel file:", did_panel_path, "\n")
+```
+
+```{r seasonality-sanity-helpers}
+policy_date_sc <- as.Date("2002-01-01")
+
+plot_pre_period_month_profile <- function(data, outcome_var, y_label, output_png) {
+  pre_means <- data %>%
+    filter(
+      date < policy_date_sc,
+      !is.na(highgap),
+      !is.na(month_num),
+      !is.na(.data[[outcome_var]])
+    ) %>%
+    group_by(highgap, month_num) %>%
+    summarise(
+      mean_outcome = mean(.data[[outcome_var]], na.rm = TRUE),
+      n_obs = n(),
+      .groups = "drop"
+    )
+
+  pre_means <- expand.grid(highgap = c(0L, 1L), month_num = 1:12) %>%
+    left_join(pre_means, by = c("highgap", "month_num")) %>%
+    arrange(highgap, month_num)
+
+  low_gap <- pre_means %>% filter(highgap == 0L) %>% pull(mean_outcome)
+  high_gap <- pre_means %>% filter(highgap == 1L) %>% pull(mean_outcome)
+
+  png(output_png, width = 1000, height = 700)
+  plot(
+    1:12, low_gap,
+    type = "o",
+    pch = 16,
+    col = "steelblue",
+    xaxt = "n",
+    xlab = "Month",
+    ylab = y_label,
+    ylim = range(c(low_gap, high_gap), na.rm = TRUE)
+  )
+  lines(1:12, high_gap, type = "o", pch = 17, col = "firebrick")
+  axis(1, at = 1:12, labels = month.abb)
+  abline(h = 0, lty = 2, col = "gray60")
+  legend(
+    "topright",
+    legend = c("Low gap", "High gap"),
+    col = c("steelblue", "firebrick"),
+    pch = c(16, 17),
+    lty = 1,
+    bty = "n"
+  )
+  dev.off()
+
+  cat("Saved", output_png, "\n")
+  print(pre_means)
+}
+
+run_pre_period_month_interaction_test <- function(data, outcome_var, label) {
+  pre_data <- data %>%
+    filter(
+      date < policy_date_sc,
+      !is.na(highgap),
+      !is.na(month_num),
+      !is.na(.data[[outcome_var]])
+    )
+
+  model_formula <- as.formula(
+    paste0(
+      outcome_var,
+      " ~ i(month_num, ref = 1) + i(month_num, highgap, ref = 1) | product + year"
+    )
+  )
+
+  model <- feols(model_formula, data = pre_data, vcov = ~product)
+  interaction_terms <- grep("^month_num::[0-9]+:highgap$", names(coef(model)), value = TRUE)
+
+  if (length(interaction_terms) == 0) {
+    stop("No highgap-by-month interaction terms found for ", label, ".")
+  }
+
+  cat("\nPre-period differential seasonality test for", label, "\n")
+  print(wald(model, interaction_terms))
+  invisible(model)
+}
+```
+
+```{r seasonality-sanity-quantity}
+out_qty <- file.path(figures_dir, "seasonality_preperiod_ln_first_unit_qty.png")
+plot_pre_period_month_profile(
+  data = df_qty,
+  outcome_var = "ln_first_unit_qty",
+  y_label = "Pre-2002 mean ln(1 + first unit quantity)",
+  output_png = out_qty
+)
+
+m_pre_month_qty <- run_pre_period_month_interaction_test(
+  data = df_qty,
+  outcome_var = "ln_first_unit_qty",
+  label = "ln(1 + first unit quantity)"
+)
+```
+
+```{r seasonality-sanity-unit-value}
+out_uv <- file.path(figures_dir, "seasonality_preperiod_ln_unit_value.png")
+plot_pre_period_month_profile(
+  data = df_uv,
+  outcome_var = "ln_unit_value",
+  y_label = "Pre-2002 mean ln(unit value)",
+  output_png = out_uv
+)
+
+m_pre_month_uv <- run_pre_period_month_interaction_test(
+  data = df_uv,
+  outcome_var = "ln_unit_value",
+  label = "ln(unit value)"
+)
+```

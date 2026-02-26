@@ -1,0 +1,14 @@
+                       m_cv_cont          m_q_cont           m_uv_cont
+Dependent Var.: ln_customs_value ln_first_unit_qty       ln_unit_value
+                                                                      
+gap_pre x post   0.1216 (0.1342)  -0.0608 (0.1301) -0.1308*** (0.0317)
+Fixed-Effects:  ---------------- ----------------- -------------------
+product                      Yes               Yes                 Yes
+date                         Yes               Yes                 Yes
+_______________ ________________ _________________ ___________________
+S.E.: Clustered      by: product       by: product         by: product
+Observations             766,524           766,524             427,161
+R2                       0.64264           0.72727             0.86888
+Within R2                1.31e-5           5.06e-6             0.00029
+---
+Signif. codes: 0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1

@@ -1,0 +1,82 @@
+                                      m1_qty             m2_qty
+Dependent Var.:            ln_first_unit_qty  ln_first_unit_qty
+                                                               
+Constant                   9.800*** (0.0593)                   
+highgap                  -0.3355*** (0.0874)                   
+post                      0.1347*** (0.0392) 0.8098*** (0.0244)
+highgap x post            0.2037*** (0.0534) 0.1498*** (0.0358)
+highgap x month_num = 2                                        
+highgap x month_num = 3                                        
+highgap x month_num = 4                                        
+highgap x month_num = 5                                        
+highgap x month_num = 6                                        
+highgap x month_num = 7                                        
+highgap x month_num = 8                                        
+highgap x month_num = 9                                        
+highgap x month_num = 10                                       
+highgap x month_num = 11                                       
+highgap x month_num = 12                                       
+Fixed-Effects:           ------------------- ------------------
+product                                   No                Yes
+date                                      No                 No
+________________________ ___________________ __________________
+S.E.: Clustered                  by: product        by: product
+Observations                         452,024            451,519
+R2                                   0.00290            0.80643
+Within R2                                 --            0.07547
+
+                                      m3_qty             m4_qty
+Dependent Var.:            ln_first_unit_qty  ln_first_unit_qty
+                                                               
+Constant                                                       
+highgap                  -0.3347*** (0.0875)                   
+post                                                           
+highgap x post            0.2041*** (0.0536) 0.1447*** (0.0361)
+highgap x month_num = 2                                        
+highgap x month_num = 3                                        
+highgap x month_num = 4                                        
+highgap x month_num = 5                                        
+highgap x month_num = 6                                        
+highgap x month_num = 7                                        
+highgap x month_num = 8                                        
+highgap x month_num = 9                                        
+highgap x month_num = 10                                       
+highgap x month_num = 11                                       
+highgap x month_num = 12                                       
+Fixed-Effects:           ------------------- ------------------
+product                                   No                Yes
+date                                     Yes                Yes
+________________________ ___________________ __________________
+S.E.: Clustered                  by: product        by: product
+Observations                         452,024            451,519
+R2                                   0.00387            0.81381
+Within R2                            0.00155            0.00056
+
+                                     m5_qty
+Dependent Var.:           ln_first_unit_qty
+                                           
+Constant                                   
+highgap                                    
+post                                       
+highgap x post           0.1458*** (0.0362)
+highgap x month_num = 2    -0.0270 (0.0182)
+highgap x month_num = 3   -0.0478* (0.0200)
+highgap x month_num = 4     0.0011 (0.0200)
+highgap x month_num = 5    -0.0104 (0.0207)
+highgap x month_num = 6  0.0838*** (0.0228)
+highgap x month_num = 7  0.1251*** (0.0252)
+highgap x month_num = 8  0.1609*** (0.0267)
+highgap x month_num = 9  0.1559*** (0.0270)
+highgap x month_num = 10 0.1457*** (0.0252)
+highgap x month_num = 11   0.0484* (0.0220)
+highgap x month_num = 12   -0.0067 (0.0188)
+Fixed-Effects:           ------------------
+product                                 Yes
+date                                    Yes
+________________________ __________________
+S.E.: Clustered                 by: product
+Observations                        451,519
+R2                                  0.81394
+Within R2                           0.00125
+---
+Signif. codes: 0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1

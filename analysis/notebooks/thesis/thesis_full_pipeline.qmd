@@ -1,0 +1,808 @@
+---
+title: "Build DiD Monthly Panel"
+format: pdf
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Construct DiD Panel
+
+```{r}
+library(dplyr)
+library(stringr)
+library(readr)
+library(haven)
+library(lubridate)
+
+sum_or_na <- function(x) {
+  if (all(is.na(x))) {
+    NA_real_
+  } else {
+    sum(x, na.rm = TRUE)
+  }
+}
+
+clean_digit_code <- function(x, width = NULL) {
+  out <- str_replace_all(as.character(x), "[^0-9]", "")
+  if (!is.null(width)) {
+    out <- str_pad(out, width = width, side = "left", pad = "0")
+  }
+  out
+}
+
+pick_first_existing <- function(candidates, names_vec) {
+  hit <- candidates[candidates %in% names_vec]
+  if (length(hit) == 0) NA_character_ else hit[[1]]
+}
+
+panel_candidates <- c(
+  "../../../transformed_data/panel_hts10_monthly.csv",
+  "../../transformed_data/panel_hts10_monthly.csv",
+  "transformed_data/panel_hts10_monthly.csv",
+  "panel_hts10_monthly.csv",
+  "../../../panel_hts10_monthly.csv"
+)
+panel_path <- panel_candidates[file.exists(panel_candidates)][1]
+if (is.na(panel_path)) {
+  stop("Could not find panel_hts10_monthly.csv in expected paths.")
+}
+
+tar_candidates <- c(
+  "../../../transformed_data/data_files_aer_2013/tar_val.dta",
+  "../../transformed_data/data_files_aer_2013/tar_val.dta",
+  "transformed_data/data_files_aer_2013/tar_val.dta",
+  "tar_val.dta",
+  "../../../tar_val.dta"
+)
+tar_path <- tar_candidates[file.exists(tar_candidates)][1]
+if (is.na(tar_path)) {
+  stop("Could not find tar_val.dta in expected paths.")
+}
+
+cat("Using panel file:", panel_path, "\n")
+cat("Using tariff file:", tar_path, "\n")
+
+results_data_dir <- "../../results/data"
+results_tables_did_dir <- "../../results/tables/did"
+results_tables_event_study_dir <- "../../results/tables/event_study"
+results_figures_event_study_dir <- "../../results/figures/event_study"
+results_figures_seasonality_dir <- "../../results/figures/seasonality"
+
+dir.create(results_data_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(results_tables_did_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(results_tables_event_study_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(results_figures_event_study_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(results_figures_seasonality_dir, recursive = TRUE, showWarnings = FALSE)
+
+panel <- read_csv(panel_path, show_col_types = FALSE)
+if (!"quantity_description" %in% names(panel)) {
+  panel$quantity_description <- NA_character_
+}
+
+panel <- panel %>%
+  mutate(
+    Country = as.character(Country),
+    hts10 = clean_digit_code(hts10, width = 10),
+    date = as.Date(date),
+    year = year(date),
+    month_num = month(date),
+    customs_value = suppressWarnings(as.numeric(customs_value)),
+    first_unit_qty = suppressWarnings(as.numeric(first_unit_qty)),
+    quantity_description = as.character(quantity_description)
+  ) %>%
+  filter(!is.na(date), !is.na(hts10), nchar(hts10) == 10)
+
+# Restrict to China panel per design.
+panel <- panel %>% filter(Country == "China")
+
+# Drop known HTS10 codes with quantity-description switches.
+problem_switch_hts10 <- c(
+  "2607000020", "2711290060", "6111206050", "6111305050", "6111905050",
+  "7115900530", "7115900590", "7115903000", "7115904000", "7115906000",
+  "9001300000"
+)
+
+rows_before_drop <- nrow(panel)
+panel <- panel %>% filter(!(hts10 %in% problem_switch_hts10))
+rows_after_drop <- nrow(panel)
+
+cat("Dropped rows from 11 problematic HTS10 codes:", rows_before_drop - rows_after_drop, "\n")
+
+# Build HS8-month panel.
+panel_hs8 <- panel %>%
+  mutate(
+    hs8 = str_sub(hts10, 1, 8),
+    unit_label = if_else(is.na(quantity_description), "", str_trim(quantity_description))
+  ) %>%
+  group_by(hs8, date, year, month_num) %>%
+  summarise(
+    customs_value = sum_or_na(customs_value),
+    unique_unit_count = n_distinct(unit_label[unit_label != ""]),
+    unit_consistent = as.integer(unique_unit_count <= 1),
+    quantity_description = case_when(
+      unique_unit_count == 1 ~ first(unit_label[unit_label != ""]),
+      TRUE ~ NA_character_
+    ),
+    first_unit_qty_hs8 = if_else(
+      unique_unit_count <= 1,
+      sum_or_na(first_unit_qty),
+      NA_real_
+    ),
+    n_hts10_in_hs8 = n_distinct(hts10),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    unit_value = if_else(
+      !is.na(first_unit_qty_hs8) & first_unit_qty_hs8 > 0,
+      customs_value / first_unit_qty_hs8,
+      NA_real_
+    )
+  )
+
+# Load tar_val and identify code + gap fields.
+tar <- read_dta(tar_path) %>% as_tibble()
+tar_names <- names(tar)
+
+year_col <- pick_first_existing(c("year", "Year", "YEAR"), tar_names)
+if (is.na(year_col)) stop("Could not identify year column in tar_val.dta.")
+
+gap_col <- pick_first_existing(
+  c("spread", "ntr_gap", "gap", "gap_pre", "NTR_gap"),
+  tar_names
+)
+if (is.na(gap_col)) stop("Could not identify NTR-gap column in tar_val.dta.")
+
+code_col <- pick_first_existing(
+  c("hs10", "hts10", "hs8", "hts8", "hs"),
+  tar_names
+)
+if (is.na(code_col)) {
+  hs_like <- tar_names[str_detect(tolower(tar_names), "hs|hts|code")]
+  if (length(hs_like) == 0) stop("Could not identify HS code column in tar_val.dta.")
+  code_col <- hs_like[[1]]
+}
+
+value_col <- pick_first_existing(c("v", "value", "trade_value"), tar_names)
+
+cat("tar_val fields selected -> code:", code_col, "| year:", year_col, "| gap:", gap_col, "\n")
+
+tar_1999 <- tar %>%
+  transmute(
+    year = suppressWarnings(as.integer(.data[[year_col]])),
+    code_raw = .data[[code_col]],
+    gap = suppressWarnings(as.numeric(.data[[gap_col]])),
+    weight_v = if (!is.na(value_col)) suppressWarnings(as.numeric(.data[[value_col]])) else NA_real_
+  ) %>%
+  filter(year == 1999) %>%
+  mutate(
+    code_digits = clean_digit_code(code_raw),
+    hs8 = str_sub(str_pad(code_digits, width = 8, side = "left", pad = "0"), 1, 8)
+  ) %>%
+  filter(!is.na(gap), !is.na(hs8), nchar(hs8) == 8)
+
+# Collapse to HS8 gap_pre (weighted by v when available, otherwise mean).
+gap_pre_hs8 <- tar_1999 %>%
+  group_by(hs8) %>%
+  summarise(
+    gap_pre = if (any(!is.na(weight_v) & weight_v > 0)) {
+      sum(gap * if_else(is.na(weight_v), 0, weight_v), na.rm = TRUE) /
+        sum(if_else(is.na(weight_v), 0, weight_v), na.rm = TRUE)
+    } else {
+      mean(gap, na.rm = TRUE)
+    },
+    .groups = "drop"
+  )
+
+# Merge gap_pre onto HS8-month trade panel.
+did_panel <- panel_hs8 %>%
+  left_join(gap_pre_hs8, by = "hs8")
+
+# DiD indicators.
+policy_date <- as.Date("2002-01-01")
+median_gap <- median(did_panel$gap_pre, na.rm = TRUE)
+
+did_panel <- did_panel %>%
+  mutate(
+    post = if_else(date >= policy_date, 1L, 0L),
+    highgap = if_else(!is.na(gap_pre) & gap_pre >= median_gap, 1L, 0L, missing = NA_integer_),
+    treated = if_else(!is.na(highgap), highgap * post, NA_integer_),
+    event_time = (year(date) - year(policy_date)) * 12 + (month(date) - month(policy_date)),
+    ln_customs_value = log1p(customs_value),
+    ln_first_unit_qty = if_else(!is.na(first_unit_qty_hs8), log1p(first_unit_qty_hs8), NA_real_),
+    ln_unit_value = if_else(!is.na(unit_value) & unit_value > 0, log(unit_value), NA_real_)
+  ) %>%
+  arrange(hs8, date)
+
+# Duplicate-key check (hs8, date).
+dup_count <- did_panel %>%
+  count(hs8, date, name = "n") %>%
+  filter(n > 1) %>%
+  nrow()
+
+# Save output.
+did_panel_out <- file.path(results_data_dir, "did_panel_monthly.csv")
+write_csv(did_panel, did_panel_out, na = "")
+cat("\nSaved", did_panel_out, "\n")
+
+# Diagnostics.
+cat("\nDiagnostics\n")
+cat("Rows:", nrow(did_panel), "\n")
+cat("Unique hs8:", n_distinct(did_panel$hs8), "\n")
+cat("Date range:", as.character(min(did_panel$date, na.rm = TRUE)), "to", as.character(max(did_panel$date, na.rm = TRUE)), "\n")
+cat("Share unit_consistent==0:", mean(did_panel$unit_consistent == 0, na.rm = TRUE), "\n")
+cat("Duplicate keys (hs8, date):", dup_count, "\n")
+
+cat("\nSummary of gap_pre:\n")
+print(summary(did_panel$gap_pre))
+
+cat("\nHighgap counts:\n")
+print(table(did_panel$highgap, useNA = "ifany"))
+
+cat("\nSummary of customs_value (non-missing):\n")
+print(summary(did_panel$customs_value[!is.na(did_panel$customs_value)]))
+
+cat("\nSummary of unit_value (non-missing):\n")
+print(summary(did_panel$unit_value[!is.na(did_panel$unit_value)]))
+```
+
+## Dropped Unit-Switch HTS10 Codes
+
+Removed codes due to quantity-description switches (no conversion imposed):
+
+- `2607000020`: kilograms (1996) -> component kilograms (2002)
+- `2711290060`: no units collected (1996-2001) -> barrels (2002-2005)
+- `6111206050`: dozens (2004) -> dozen pairs (2005)
+- `6111305050`: dozens (2004) -> dozen pairs (2005)
+- `6111905050`: dozens (2004) -> dozen pairs (2005)
+- `7115900530`: no units collected (1999-2001) -> grams (2003, 2005 observed)
+- `7115900590`: no units collected (2001) -> grams (2004-2005)
+- `7115903000`: no units collected (1996-2001) -> grams (2002, 2004-2005 observed)
+- `7115904000`: no units collected (1996-2001) -> grams (2002-2005)
+- `7115906000`: no units collected (1997-2001) -> grams (2002-2005)
+- `9001300000`: pairs (1999-2004 observed) -> number (2005)
+
+## DiD Regression Ladder
+
+```{r did-libs}
+library(readr)
+library(dplyr)
+library(fixest)
+```
+
+```{r did-load-filter}
+did_panel_candidates <- c(
+  file.path(results_data_dir, "did_panel_monthly.csv"),
+  "did_panel_monthly.csv"
+)
+did_panel_path <- did_panel_candidates[file.exists(did_panel_candidates)][1]
+if (is.na(did_panel_path)) {
+  stop("Could not find did_panel_monthly.csv in expected paths.")
+}
+
+df <- read_csv(did_panel_path, show_col_types = FALSE)
+
+if (!"hs8" %in% names(df)) {
+  stop("No hs8 column found.")
+}
+
+df <- df %>%
+  mutate(
+    product = as.character(hs8),
+    date = as.Date(date)
+  ) %>%
+  filter(
+    !is.na(product), !is.na(date),
+    !is.na(post), !is.na(highgap)
+  )
+
+cat("Using panel file:", did_panel_path, "\n")
+cat("Using product column: hs8\n")
+cat("Rows in base sample:", nrow(df), "\n")
+cat("Unique products in base sample:", n_distinct(df$product), "\n")
+
+df_did_common <- df %>%
+  filter(
+    !is.na(ln_customs_value),
+    !is.na(ln_first_unit_qty),
+    !is.na(ln_unit_value),
+    !is.na(month_num)
+  )
+
+cat("Rows in common DiD sample (all outcomes observed):", nrow(df_did_common), "\n")
+cat("Unique products in common DiD sample:", n_distinct(df_did_common$product), "\n")
+```
+
+```{r did-ladder-customs}
+cat("Rows in customs ladder sample (common sample):", nrow(df_did_common), "\n")
+
+m1_customs <- feols(ln_customs_value ~ highgap * post, data = df_did_common, vcov = ~product)
+m2_customs <- feols(ln_customs_value ~ highgap * post | product, data = df_did_common, vcov = ~product)
+m3_customs <- feols(ln_customs_value ~ highgap * post | date, data = df_did_common, vcov = ~product)
+m4_customs <- feols(ln_customs_value ~ highgap * post | product + date, data = df_did_common, vcov = ~product)
+m5_customs <- feols(
+  ln_customs_value ~ highgap * post + i(month_num, highgap, ref = 1) | product + date,
+  data = df_did_common,
+  vcov = ~product
+)
+
+etable(m1_customs, m2_customs, m3_customs, m4_customs, m5_customs)
+out_customs <- file.path(results_tables_did_dir, "did_ladder_ln_customs_value.txt")
+capture.output(
+  etable(m1_customs, m2_customs, m3_customs, m4_customs, m5_customs),
+  file = out_customs
+)
+cat("Saved", out_customs, "\n")
+```
+
+```{r did-ladder-quantity}
+cat("Rows in quantity ladder sample (common sample):", nrow(df_did_common), "\n")
+
+m1_qty <- feols(ln_first_unit_qty ~ highgap * post, data = df_did_common, vcov = ~product)
+m2_qty <- feols(ln_first_unit_qty ~ highgap * post | product, data = df_did_common, vcov = ~product)
+m3_qty <- feols(ln_first_unit_qty ~ highgap * post | date, data = df_did_common, vcov = ~product)
+m4_qty <- feols(ln_first_unit_qty ~ highgap * post | product + date, data = df_did_common, vcov = ~product)
+m5_qty <- feols(
+  ln_first_unit_qty ~ highgap * post + i(month_num, highgap, ref = 1) | product + date,
+  data = df_did_common,
+  vcov = ~product
+)
+
+etable(m1_qty, m2_qty, m3_qty, m4_qty, m5_qty)
+out_qty <- file.path(results_tables_did_dir, "did_ladder_ln_first_unit_qty.txt")
+capture.output(
+  etable(m1_qty, m2_qty, m3_qty, m4_qty, m5_qty),
+  file = out_qty
+)
+cat("Saved", out_qty, "\n")
+```
+
+```{r did-ladder-unit-value}
+cat("Rows in unit-value ladder sample (common sample):", nrow(df_did_common), "\n")
+
+m1_uv <- feols(ln_unit_value ~ highgap * post, data = df_did_common, vcov = ~product)
+m2_uv <- feols(ln_unit_value ~ highgap * post | product, data = df_did_common, vcov = ~product)
+m3_uv <- feols(ln_unit_value ~ highgap * post | date, data = df_did_common, vcov = ~product)
+m4_uv <- feols(ln_unit_value ~ highgap * post | product + date, data = df_did_common, vcov = ~product)
+m5_uv <- feols(
+  ln_unit_value ~ highgap * post + i(month_num, highgap, ref = 1) | product + date,
+  data = df_did_common,
+  vcov = ~product
+)
+
+etable(m1_uv, m2_uv, m3_uv, m4_uv, m5_uv)
+out_uv <- file.path(results_tables_did_dir, "did_ladder_ln_unit_value.txt")
+capture.output(
+  etable(m1_uv, m2_uv, m3_uv, m4_uv, m5_uv),
+  file = out_uv
+)
+cat("Saved", out_uv, "\n")
+```
+
+## Continuous-Treatment DiD (Gap Intensity)
+
+```{r did-continuous-setup}
+d_cont <- df %>%
+  filter(!is.na(gap_pre))
+
+d_unit_consistent <- d_cont %>%
+  filter(unit_consistent == 1)
+
+cat("Rows in continuous-treatment base sample:", nrow(d_cont), "\n")
+cat("Unique products in continuous-treatment base sample:", n_distinct(d_cont$product), "\n")
+cat("Rows in continuous-treatment unit-consistent sample:", nrow(d_unit_consistent), "\n")
+cat("Unique products in continuous-treatment unit-consistent sample:", n_distinct(d_unit_consistent$product), "\n")
+```
+
+```{r did-continuous-run}
+m_cv_cont <- feols(
+  ln_customs_value ~ gap_pre * post | product + date,
+  data = d_cont %>% filter(!is.na(ln_customs_value)),
+  vcov = ~product
+)
+
+m_q_cont <- feols(
+  ln_first_unit_qty ~ gap_pre * post | product + date,
+  data = d_unit_consistent %>% filter(!is.na(ln_first_unit_qty)),
+  vcov = ~product
+)
+
+m_uv_cont <- feols(
+  ln_unit_value ~ gap_pre * post | product + date,
+  data = d_unit_consistent %>% filter(!is.na(ln_unit_value)),
+  vcov = ~product
+)
+
+etable(m_cv_cont, m_q_cont, m_uv_cont)
+out_cont_models <- file.path(results_tables_did_dir, "did_continuous_gap_pre_models.txt")
+capture.output(
+  etable(m_cv_cont, m_q_cont, m_uv_cont),
+  file = out_cont_models
+)
+cat("Saved", out_cont_models, "\n")
+
+cont_effects <- tibble(
+  outcome = c("ln_customs_value", "ln_first_unit_qty", "ln_unit_value"),
+  coef_gap_pre_post = c(
+    coef(m_cv_cont)[["gap_pre:post"]],
+    coef(m_q_cont)[["gap_pre:post"]],
+    coef(m_uv_cont)[["gap_pre:post"]]
+  ),
+  se_gap_pre_post = c(
+    se(m_cv_cont)[["gap_pre:post"]],
+    se(m_q_cont)[["gap_pre:post"]],
+    se(m_uv_cont)[["gap_pre:post"]]
+  ),
+  n_obs = c(nobs(m_cv_cont), nobs(m_q_cont), nobs(m_uv_cont))
+)
+print(cont_effects)
+out_cont_effects <- file.path(results_tables_did_dir, "did_continuous_gap_pre_post_effects.csv")
+write_csv(cont_effects, out_cont_effects, na = "")
+cat("Saved", out_cont_effects, "\n")
+```
+
+## Event Study
+
+```{r event-study-settings}
+df_customs <- df %>% filter(!is.na(ln_customs_value))
+df_qty <- df %>% filter(!is.na(ln_first_unit_qty))
+df_uv <- df %>% filter(!is.na(ln_unit_value))
+
+WIN_PRE <- 60
+WIN_POST <- 48
+
+plot_event_study_year <- function(model_obj, output_png, y_label, win_pre, win_post, term_name = "highgap", base_year = 2002) {
+  b <- coef(model_obj)
+  s <- se(model_obj)
+
+  coef_pattern <- paste0("^event_time::[-]?[0-9]+:", term_name, "$")
+  parse_pattern <- paste0("^event_time::(-?[0-9]+):", term_name, "$")
+
+  keep <- grepl(coef_pattern, names(b))
+  if (!any(keep)) {
+    stop("No event-study coefficients matched expected naming pattern.")
+  }
+
+  event_time <- as.integer(sub(parse_pattern, "\\1", names(b)[keep]))
+  est <- as.numeric(b[keep])
+  stderr <- as.numeric(s[keep])
+  ci_low <- est - 1.96 * stderr
+  ci_high <- est + 1.96 * stderr
+
+  ord <- order(event_time)
+  event_time <- event_time[ord]
+  est <- est[ord]
+  ci_low <- ci_low[ord]
+  ci_high <- ci_high[ord]
+
+  tick_min <- floor(min(event_time) / 12) * 12
+  tick_max <- ceiling(max(event_time) / 12) * 12
+  tick_at <- seq(tick_min, tick_max, by = 12)
+  tick_labels <- base_year + tick_at / 12
+
+  png(output_png, width = 1000, height = 700)
+  plot(
+    event_time, est,
+    pch = 16,
+    col = "black",
+    xlab = "Year",
+    ylab = y_label,
+    xaxt = "n",
+    ylim = range(c(ci_low, ci_high, 0), na.rm = TRUE)
+  )
+  segments(event_time, ci_low, event_time, ci_high, col = "gray40")
+  lines(event_time, est, col = "black")
+  axis(1, at = tick_at, labels = tick_labels)
+  abline(h = 0, lty = 2, col = "red")
+  dev.off()
+}
+```
+
+```{r event-study-customs}
+es_customs <- df_customs %>%
+  filter(!is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in customs event-study sample:", nrow(es_customs), "\n")
+cat("Customs event-time range:", min(es_customs$event_time), "to", max(es_customs$event_time), "\n")
+
+m_es_customs_base <- feols(
+  ln_customs_value ~ i(event_time, highgap, ref = -1) | product + date,
+  data = es_customs,
+  vcov = ~product
+)
+
+summary(m_es_customs_base)
+out_es_customs <- file.path(results_figures_event_study_dir, "event_study_ln_customs_value.png")
+plot_event_study_year(
+  model_obj = m_es_customs_base,
+  output_png = out_es_customs,
+  y_label = "Effect on ln(1 + customs value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_es_customs, "\n")
+```
+
+```{r event-study-quantity}
+es_qty <- df_qty %>%
+  filter(!is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in quantity event-study sample:", nrow(es_qty), "\n")
+cat("Quantity event-time range:", min(es_qty$event_time), "to", max(es_qty$event_time), "\n")
+
+m_es_qty_base <- feols(
+  ln_first_unit_qty ~ i(event_time, highgap, ref = -1) | product + date,
+  data = es_qty,
+  vcov = ~product
+)
+
+summary(m_es_qty_base)
+out_es_qty <- file.path(results_figures_event_study_dir, "event_study_ln_first_unit_qty.png")
+plot_event_study_year(
+  model_obj = m_es_qty_base,
+  output_png = out_es_qty,
+  y_label = "Effect on ln(1 + first unit quantity)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_es_qty, "\n")
+```
+
+```{r event-study-unit-value}
+es_uv <- df_uv %>%
+  filter(!is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in unit-value event-study sample:", nrow(es_uv), "\n")
+cat("Unit-value event-time range:", min(es_uv$event_time), "to", max(es_uv$event_time), "\n")
+
+m_es_uv_base <- feols(
+  ln_unit_value ~ i(event_time, highgap, ref = -1) | product + date,
+  data = es_uv,
+  vcov = ~product
+)
+
+summary(m_es_uv_base)
+out_es_uv <- file.path(results_figures_event_study_dir, "event_study_ln_unit_value.png")
+plot_event_study_year(
+  model_obj = m_es_uv_base,
+  output_png = out_es_uv,
+  y_label = "Effect on ln(unit value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_es_uv, "\n")
+```
+
+## Continuous-Treatment Event Study (Gap Intensity)
+
+```{r event-study-continuous-customs}
+es_customs_cont <- d_cont %>%
+  filter(!is.na(ln_customs_value), !is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in customs continuous event-study sample:", nrow(es_customs_cont), "\n")
+cat("Customs continuous event-time range:", min(es_customs_cont$event_time), "to", max(es_customs_cont$event_time), "\n")
+
+m_es_customs_cont <- feols(
+  ln_customs_value ~ i(event_time, gap_pre, ref = -1) | product + date,
+  data = es_customs_cont,
+  vcov = ~product
+)
+
+pt_customs_cont <- wald(m_es_customs_cont, keep = "^event_time::-[0-9]+:gap_pre$")
+cat("Customs pre-trend joint test (k < 0):\n")
+print(pt_customs_cont)
+
+out_es_cont_customs <- file.path(results_figures_event_study_dir, "event_study_continuous_ln_customs_value.png")
+plot_event_study_year(
+  model_obj = m_es_customs_cont,
+  output_png = out_es_cont_customs,
+  y_label = "Effect per +1 NTR gap on ln(1 + customs value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_es_cont_customs, "\n")
+```
+
+```{r event-study-continuous-quantity}
+es_qty_cont <- d_unit_consistent %>%
+  filter(!is.na(ln_first_unit_qty), !is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in quantity continuous event-study sample:", nrow(es_qty_cont), "\n")
+cat("Quantity continuous event-time range:", min(es_qty_cont$event_time), "to", max(es_qty_cont$event_time), "\n")
+
+m_es_qty_cont <- feols(
+  ln_first_unit_qty ~ i(event_time, gap_pre, ref = -1) | product + date,
+  data = es_qty_cont,
+  vcov = ~product
+)
+
+pt_qty_cont <- wald(m_es_qty_cont, keep = "^event_time::-[0-9]+:gap_pre$")
+cat("Quantity pre-trend joint test (k < 0):\n")
+print(pt_qty_cont)
+
+out_es_cont_qty <- file.path(results_figures_event_study_dir, "event_study_continuous_ln_first_unit_qty.png")
+plot_event_study_year(
+  model_obj = m_es_qty_cont,
+  output_png = out_es_cont_qty,
+  y_label = "Effect per +1 NTR gap on ln(1 + first unit quantity)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_es_cont_qty, "\n")
+```
+
+```{r event-study-continuous-unit-value}
+es_uv_cont <- d_unit_consistent %>%
+  filter(!is.na(ln_unit_value), !is.na(event_time)) %>%
+  filter(event_time >= -WIN_PRE, event_time <= WIN_POST)
+
+cat("Rows in unit-value continuous event-study sample:", nrow(es_uv_cont), "\n")
+cat("Unit-value continuous event-time range:", min(es_uv_cont$event_time), "to", max(es_uv_cont$event_time), "\n")
+
+m_es_uv_cont <- feols(
+  ln_unit_value ~ i(event_time, gap_pre, ref = -1) | product + date,
+  data = es_uv_cont,
+  vcov = ~product
+)
+
+pt_uv_cont <- wald(m_es_uv_cont, keep = "^event_time::-[0-9]+:gap_pre$")
+cat("Unit-value pre-trend joint test (k < 0):\n")
+print(pt_uv_cont)
+
+out_es_cont_uv <- file.path(results_figures_event_study_dir, "event_study_continuous_ln_unit_value.png")
+plot_event_study_year(
+  model_obj = m_es_uv_cont,
+  output_png = out_es_cont_uv,
+  y_label = "Effect per +1 NTR gap on ln(unit value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_es_cont_uv, "\n")
+```
+
+```{r event-study-continuous-save}
+out_cont_es_models <- file.path(results_tables_event_study_dir, "event_study_continuous_gap_pre_models.txt")
+capture.output(
+  etable(m_es_customs_cont, m_es_qty_cont, m_es_uv_cont),
+  file = out_cont_es_models
+)
+cat("Saved", out_cont_es_models, "\n")
+
+cont_pretrend <- tibble(
+  outcome = c("ln_customs_value", "ln_first_unit_qty", "ln_unit_value"),
+  stat = c(pt_customs_cont$stat, pt_qty_cont$stat, pt_uv_cont$stat),
+  p_value = c(pt_customs_cont$p, pt_qty_cont$p, pt_uv_cont$p),
+  df1 = c(pt_customs_cont$df1, pt_qty_cont$df1, pt_uv_cont$df1),
+  df2 = c(pt_customs_cont$df2, pt_qty_cont$df2, pt_uv_cont$df2),
+  n_obs = c(nobs(m_es_customs_cont), nobs(m_es_qty_cont), nobs(m_es_uv_cont))
+)
+print(cont_pretrend)
+out_cont_es_pretrend <- file.path(results_tables_event_study_dir, "event_study_continuous_gap_pre_pretrend_tests.csv")
+write_csv(cont_pretrend, out_cont_es_pretrend, na = "")
+cat("Saved", out_cont_es_pretrend, "\n")
+```
+
+## Seasonality Sanity Checks
+
+```{r seasonality-sanity-helpers}
+policy_date_sc <- as.Date("2002-01-01")
+
+plot_pre_period_month_profile <- function(data, outcome_var, y_label, output_png) {
+  pre_means <- data %>%
+    filter(
+      date < policy_date_sc,
+      !is.na(highgap),
+      !is.na(month_num),
+      !is.na(.data[[outcome_var]])
+    ) %>%
+    group_by(highgap, month_num) %>%
+    summarise(
+      mean_outcome = mean(.data[[outcome_var]], na.rm = TRUE),
+      n_obs = n(),
+      .groups = "drop"
+    )
+
+  pre_means <- expand.grid(highgap = c(0L, 1L), month_num = 1:12) %>%
+    left_join(pre_means, by = c("highgap", "month_num")) %>%
+    arrange(highgap, month_num)
+
+  low_gap <- pre_means %>% filter(highgap == 0L) %>% pull(mean_outcome)
+  high_gap <- pre_means %>% filter(highgap == 1L) %>% pull(mean_outcome)
+
+  png(output_png, width = 1000, height = 700)
+  plot(
+    1:12, low_gap,
+    type = "o",
+    pch = 16,
+    col = "steelblue",
+    xaxt = "n",
+    xlab = "Month",
+    ylab = y_label,
+    ylim = range(c(low_gap, high_gap), na.rm = TRUE)
+  )
+  lines(1:12, high_gap, type = "o", pch = 17, col = "firebrick")
+  axis(1, at = 1:12, labels = month.abb)
+  abline(h = 0, lty = 2, col = "gray60")
+  legend(
+    "topright",
+    legend = c("Low gap", "High gap"),
+    col = c("steelblue", "firebrick"),
+    pch = c(16, 17),
+    lty = 1,
+    bty = "n"
+  )
+  dev.off()
+
+  cat("Saved", output_png, "\n")
+  print(pre_means)
+}
+
+run_pre_period_month_interaction_test <- function(data, outcome_var, label) {
+  pre_data <- data %>%
+    filter(
+      date < policy_date_sc,
+      !is.na(highgap),
+      !is.na(month_num),
+      !is.na(.data[[outcome_var]])
+    )
+
+  model_formula <- as.formula(
+    paste0(
+      outcome_var,
+      " ~ i(month_num, ref = 1) + i(month_num, highgap, ref = 1) | product + year"
+    )
+  )
+
+  model <- feols(model_formula, data = pre_data, vcov = ~product)
+  interaction_terms <- grep("^month_num::[0-9]+:highgap$", names(coef(model)), value = TRUE)
+
+  if (length(interaction_terms) == 0) {
+    stop("No highgap-by-month interaction terms found for ", label, ".")
+  }
+
+  cat("\nPre-period differential seasonality test for", label, "\n")
+  print(wald(model, interaction_terms))
+  invisible(model)
+}
+```
+
+```{r seasonality-sanity-quantity}
+out_seasonality_qty <- file.path(results_figures_seasonality_dir, "seasonality_preperiod_ln_first_unit_qty.png")
+plot_pre_period_month_profile(
+  data = df_qty,
+  outcome_var = "ln_first_unit_qty",
+  y_label = "Pre-2002 mean ln(1 + first unit quantity)",
+  output_png = out_seasonality_qty
+)
+
+m_pre_month_qty <- run_pre_period_month_interaction_test(
+  data = df_qty,
+  outcome_var = "ln_first_unit_qty",
+  label = "ln(1 + first unit quantity)"
+)
+```
+
+```{r seasonality-sanity-unit-value}
+out_seasonality_uv <- file.path(results_figures_seasonality_dir, "seasonality_preperiod_ln_unit_value.png")
+plot_pre_period_month_profile(
+  data = df_uv,
+  outcome_var = "ln_unit_value",
+  y_label = "Pre-2002 mean ln(unit value)",
+  output_png = out_seasonality_uv
+)
+
+m_pre_month_uv <- run_pre_period_month_interaction_test(
+  data = df_uv,
+  outcome_var = "ln_unit_value",
+  label = "ln(unit value)"
+)
+```
