@@ -37,8 +37,8 @@ clean_digit_code <- function(x, width = NULL) {
 }
 
 panel_candidates <- c(
-  "panel_hts10_monthly.csv",
-  "transformed_data/panel_hts10_monthly.csv"
+  "analysis/results/data/panel_hts10_monthly.csv",
+  "panel_hts10_monthly.csv"
 )
 panel_path <- panel_candidates[file.exists(panel_candidates)][1]
 if (is.na(panel_path)) {
@@ -47,7 +47,7 @@ if (is.na(panel_path)) {
 
 tar_candidates <- c(
   "tar_val.dta",
-  "transformed_data/data_files_aer_2013/tar_val.dta"
+  "outside_data/data_files_aer_2013/tar_val.dta"
 )
 tar_path <- tar_candidates[file.exists(tar_candidates)][1]
 if (is.na(tar_path)) {
