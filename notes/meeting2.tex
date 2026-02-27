@@ -29,7 +29,7 @@ Build an analysis-ready monthly panel for Difference-in-Differences (DiD), where
   File                                                    & Purpose                                                                                                                     \\
   \midrule
   \path{raw_data/China_Imports_1996_2005.csv}             & Main trade file from USITC DataWeb with monthly columns (January to December), product codes, values, and quantities.       \\
-  \path{transformed_data/data_files_aer_2013/tar_val.dta} & Tariff/NTR-gap source. In this project, key variables include \texttt{hs8}, \texttt{year}, \texttt{spread}, and \texttt{v}. \\
+  \path{outside_data/data_files_aer_2013/tar_val.dta} & Tariff/NTR-gap source. In this project, key variables include \texttt{hs8}, \texttt{year}, \texttt{spread}, and \texttt{v}. \\
   \path{analysis/results/data/panel_hts10_monthly.csv}    & Intermediate monthly panel at HTS10 level (created during cleaning).                                                        \\
   \path{analysis/results/data/did_panel_monthly.csv}      & Final DiD-ready panel (you will create this).                                                                              \\
   \bottomrule
@@ -97,7 +97,7 @@ Where \(y_{pt}\) is one of:
 \begin{verbatim}
 INPUT:
   trade_file = raw_data/China_Imports_1996_2005.csv
-  tariff_file = transformed_data/data_files_aer_2013/tar_val.dta
+  tariff_file = outside_data/data_files_aer_2013/tar_val.dta
 
 STEP A: Load trade panel
   read trade data
