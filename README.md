@@ -43,7 +43,13 @@ Optional (rebuild raw trade data from API instead of release assets, but takes a
 
 ```bash
 cd w26-causal-inference-economics
+
+# Option A: set token as an environment variable for this shell session.
 export DATAWEB_TOKEN="<your_usitc_dataweb_token>"
+
+# Option B: create a local .env file (gitignored) used by data_cleaning_scripts/api.py.
+cp data_cleaning_scripts/.env.example data_cleaning_scripts/.env
+# then edit data_cleaning_scripts/.env and set DATAWEB_TOKEN
 
 python3 data_cleaning_scripts/api.py --output-dir raw_data --start-year 1996 --end-year 2005
 Rscript data_cleaning_scripts/build_panel_hts10_monthly.R
