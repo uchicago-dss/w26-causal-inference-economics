@@ -1,5 +1,17 @@
+# macOS artifacts
+.DS_Store
+
+# Local secrets
+.env
+.env.*
+!.env.example
+data_cleaning_scripts/.env
+!data_cleaning_scripts/.env.example
+
 # Large datasets (download from GitHub Releases via scripts/download_data.sh)
 /raw_data/
-/transformed_data/
+/outside_data/
+
+# Generated analysis datasets
 /analysis/results/data/
 .DS_store

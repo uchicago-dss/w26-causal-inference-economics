@@ -170,7 +170,7 @@ for asset_name in "${REQUESTED_ASSETS[@]}"; do
   else
     RELATIVE_OUTPUT_PATH="$(manifest_path_for_asset "$asset_name")"
     if [[ -z "$RELATIVE_OUTPUT_PATH" ]]; then
-      RELATIVE_OUTPUT_PATH="transformed_data/${asset_name}"
+      RELATIVE_OUTPUT_PATH="outside_data/${asset_name}"
     fi
     OUTPUT_PATH="${DEST_ROOT%/}/${RELATIVE_OUTPUT_PATH}"
   fi
