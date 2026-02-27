@@ -1,8 +1,8 @@
 # w26-causal-inference-economics
 
-This project explores a key topic in economics: causal inference. With has a heavy emphasis on statistics and data science, causal inference’s goal is to convincingly claim, for example, that college increases your net income by x dollars after 10 years, holding everything else constant. This project will be heavily focusing on regressions: cleaning the data in preparation, creating the model in accordance with causal inference theory, interpreting the model in the context of the problem, and finally applying advanced statistical theory to answer adjacent questions. 
+This project explores a key topic in economics: causal inference. With has a heavy emphasis on statistics and data science, causal inference’s goal is to convincingly claim, for example, that college increases your net income by x dollars after 10 years, holding everything else constant. This project will be heavily focusing on regressions: cleaning the data in preparation, creating the model in accordance with causal inference theory, interpreting the model in the context of the problem, and finally applying advanced statistical theory to answer adjacent questions.
 
-The central topic members will assess is the impact of China’s WTO accession in 2001 on costs and quantities of American goods. 
+The central topic members will assess is the impact of China’s WTO accession in 2001 on costs and quantities of American goods.
 
 This project mainly aims to teach theory and technical skills.
 
@@ -23,7 +23,7 @@ Prerequisites:
 - R + Quarto installed for rendering notebooks.
 - Python 3 only if you plan to pull fresh API data.
 
-Recommended (use GitHub Releases):
+Recommended:
 
 ```bash
 cd w26-causal-inference-economics
@@ -39,7 +39,7 @@ ls -lh analysis/results/data/panel_hts10_monthly.csv
 ls -lh outside_data/data_files_aer_2013/tar_val.dta
 ```
 
-Optional (rebuild raw trade data from API instead of release assets):
+Optional (rebuild raw trade data from API instead of release assets, but takes a few hours):
 
 ```bash
 cd w26-causal-inference-economics
