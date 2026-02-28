@@ -21,7 +21,8 @@
 \begin{frame}
   \titlepage
 \end{frame}
-
+% Speaker notes: Title: we're presenting our work on how China's WTO accession and the granting of permanent normal 
+% trade relations affected U.S. imports — both in terms of how much was imported and at what price
 \begin{frame}{Talk Roadmap (12 min)}
   \small
   \begin{itemize}
@@ -31,25 +32,40 @@
     \item Limitations, robustness, and next steps
   \end{itemize}
 \end{frame}
-
+% Speaker notes: I'll cover the background and our research question, then walk through how we identify the effect. 
+% Vincent/Felix will take over for the data, results, and next steps
 \begin{frame}{Background}
-
+  \small
+  \begin{itemize}
+    \item China's economy grew rapidly in the 1990s, becoming a major exporter to the U.S.
+    \item Under U.S.\ law, China received low tariff rates (Normal Trade Relations) --- but Congress had to \textbf{vote to renew} NTR status every year.
+    \item This annual renewal created \textbf{trade-policy uncertainty}: importers faced the risk that tariffs could spike to 1930s-era levels (Smoot-Hawley rates) if Congress voted no.
+    \item In \textbf{October 2000}, the U.S.\ passed the law granting China Permanent Normal Trade Relations (PNTR), conditional on WTO accession.
+    \item In \textbf{December 2001}, China officially joined the WTO; permanent low tariffs took effect in January 2002.
+    \item Key insight: the actual tariff rates mostly \textbf{did not change}: what changed was the \textbf{elimination of uncertainty} about future tariffs.
+  \end{itemize}
 \end{frame}
-
+% Speaker notes: U.S. law, China's low tariff rates had to be renewed by Congress every single year. This created real uncertainty for importers — 
+% if Congress voted no, tariffs on Chinese goods would revert to extremely high rates from the 1930s Smoot-Hawley Act.
+%  In October 2000, the U.S. passed a law granting China Permanent Normal Trade Relations, but it was conditional on China actually joining the WTO. 
+% That happened in December 2001, and the permanent low tariffs took effect January 2002.
+% the actual tariff rates mostly didn't change. 
+% China was already getting the low rate every year. 
+% What changed was that the uncertainty about whether those low rates would continue
 
 \begin{frame}{Research Question}
   \begin{block}{Thesis question}
     How did the resolution of U.S. trade-policy uncertainty around China (PNTR in 2000, WTO accession in 2001/2002 implementation) affect:
-
-    % make this less jargony
     \begin{itemize}
-      \item import quantities into the U.S., and
-      \item import prices paid by U.S. buyers?
+      \item the volume of imports from China into the U.S., and
+      \item the prices U.S.\ buyers paid for Chinese imports?
     \end{itemize}
   \end{block}
 
 \end{frame}
-
+% Speaker Notes: did removing that tariff uncertainty cause U.S. imports from China to increase? 
+% And did it affect the prices American buyers paid?
+% We look at both quantities and prices separately.
 
 % \begin{frame}{Assumptions, Risks, and Robustness Plan}
 %   \small
@@ -78,24 +94,58 @@
 \begin{frame}{Policy Timing and Identification Intuition}
   \small
   \begin{itemize}
-    \item Pre-2001: China receives renewable NTR treatment; ther is a risk for not receiving NTR, causing uncertainty to be priced into products.
-    \item 2000: U.S. grants PNTR (legal permanence conditional on WTO accession).
-    \item Dec 2001 / Jan 2002: WTO accession and operational transition.
+    \item \textbf{Pre-2001}: China receives NTR annually; risk of non-renewal creates uncertainty that is priced into trade decisions.
+    \item \textbf{2000}: U.S.\ grants PNTR (legal permanence, conditional on WTO accession).
+    \item \textbf{Dec 2001 / Jan 2002}: China joins WTO; permanent low tariffs take effect.
+  \end{itemize}
+
+  \vspace{0.3cm}
+  \textbf{Why did uncertainty matter differently across products?}
+  \begin{itemize}
+    \item Every product had two legislated tariff rates: a low NTR rate and a high non-NTR rate (dating back to the Smoot-Hawley Act of 1930).
+    \item The \textbf{NTR gap} = non-NTR rate $-$ NTR rate measures how much a product's tariff \emph{would have jumped} if Congress didn't renew.
+    \item Products with large gaps faced more risk $\rightarrow$ importers could be heavily impacted.
+    \item Products with small gaps faced less risk $\rightarrow$ less impact by the annual vote.
+  \end{itemize}
+\end{frame}
+\iffalse
+ Speaker notes: Before 2001, Congress renewed China's low tariffs annually.
+ In 2000, PNTR was granted. In January 2002, WTO accession made it permanent.
+ Now, the uncertainty wasn't equal across products. Every product has two tariff rates written into law — 
+ the low NTR rate and the high non-NTR rate from 1930. The gap between these rates tells us how exposed each product was.
+ A product with a 45 percentage point gap faced serious risk 
+ — importers might hold back on long-term contracts. A product with a 3 percentage point gap had almost nothing to worry about. When the uncertainty was removed, we'd expect the high-gap products to respond the most."
+\fi
+
+\begin{frame}{Identification Strategy: Difference-in-Differences}
+  \small
+  \begin{block}{Core idea}
+    Compare import growth for \textbf{high-gap} products (more exposed to uncertainty) vs.\ \textbf{low-gap} products (less exposed), before and after WTO entry.
+  \end{block}
+
+  \vspace{0.2cm}
+  \textbf{Why this works:}
+  \begin{itemize}
+    \item Low-gap products serve as a \textbf{control group}: because, while they were still affected, they had a small stake from the policy change.
+    \item Any ``extra'' import growth in high-gap products after 2002, beyond what low-gap products experienced, can be attributed to the removal of tariff uncertainty.
   \end{itemize}
 
   \vspace{0.2cm}
-  \begin{block}{Identification idea}
-    Products with larger pre-period NTR gaps should respond more after policy uncertainty is resolved.
-  \end{block}
-
+  \textbf{Treatment exposure (measured in 1999, before WTO negotiations):}
   \begin{equation*}
     \text{Exposure}_p = \text{gap\_pre}_p = (\text{non-NTR tariff})_p - (\text{NTR tariff})_p
   \end{equation*}
-\end{frame}
 
-\begin{frame}{Identification idea}
-  % describe DiD and how it evolves to the exposure (our treatment)
+  Products above the median gap $\rightarrow$ ``high-gap'' (treatment); below $\rightarrow$ ``low-gap'' (control).
 \end{frame}
+\iffalse
+ Speaker notes: Before 2001, Congress renewed China's low tariffs annually.
+ In 2000, PNTR was granted. In January 2002, WTO accession made it permanent.
+ Now, the uncertainty wasn't equal across products. Every product has two tariff rates written into law — 
+ the low NTR rate and the high non-NTR rate from 1930. The gap between these rates tells us how exposed each product was.
+ A product with a 45 percentage point gap faced serious risk 
+ — importers might hold back on long-term contracts. A product with a 3 percentage point gap had almost nothing to worry about. When the uncertainty was removed, we'd expect the high-gap products to respond the most."
+\fi
 
 \begin{frame}{Data and Sample}
   \small
