@@ -174,26 +174,32 @@
 \end{frame}
 
 \begin{frame}{Baseline Specification}
-  \small
-  \begin{block}{Two-way FE DiD}
-    \begin{equation*}
-      Y_{pt} = \beta\,(\text{HighGap}_p \times \text{Post}_t) + \delta_p + \lambda_t + \varepsilon_{pt}
-    \end{equation*}
-  \end{block}
-
-  \begin{itemize}
-    \item $Y_{pt}$: log import value, log quantity, or log unit value.
-    \item $\delta_p$: product fixed effects.
-    \item $\lambda_t$: time fixed effects.
-    \item SEs clustered at product level.
-  \end{itemize}
-
-  % \vspace{0.2cm}
-  % \textbf{Continuous variant}
-  % \begin{equation*}
-  %   Y_{pt} = \theta\,(\text{gap\_pre}_p \times \text{Post}_t) + \delta_p + \lambda_t + \varepsilon_{pt}
-  % \end{equation*}
-  % add after if we have time 
+    \small
+  
+    \begin{block}{Two-way FE DiD}
+      \begin{equation*}
+        Y_{pt} = \beta\,(\text{HighGap}_p \times \text{Post}_t) + \delta_p + \lambda_t + \varepsilon_{pt}
+      \end{equation*}
+    \end{block}
+  
+    \begin{columns}
+      % ---- Left column: text ----
+      \begin{column}{0.6\textwidth}
+        \begin{itemize}
+          \item $Y_{pt}$: log import value, log quantity, or log unit value.
+          \item $\delta_p$: product fixed effects.
+          \item $\lambda_t$: time fixed effects.
+          \item SEs clustered at product level.
+        \end{itemize}
+      \end{column}
+  
+      % ---- Right column: figure ----
+      \begin{column}{0.4\textwidth}
+        \vspace{0.5em}
+        \includegraphics[width=\linewidth]{did_visual.pdf}
+      \end{column}
+    \end{columns}
+  
 \end{frame}
 
 \begin{frame}{Main DiD Results (Current Outputs)}
@@ -233,30 +239,63 @@
 % \end{frame}
 
 \begin{frame}{Event Study: Value and Quantity}
-  \centering
-  \begin{columns}[T,onlytextwidth]
-    \begin{column}{0.49\textwidth}
-      \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_customs_value.png}
-      \vspace{0.1cm}
-      \scriptsize Value event study
-    \end{column}
-    \begin{column}{0.49\textwidth}
-      \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_first_unit_qty.png}
-      \vspace{0.1cm}
-      \scriptsize Quantity event study
-    \end{column}
-  \end{columns}
+    \small
+    \begin{block}{Event-study specification}
+    \begin{equation*}
+      Y_{pt}
+      =
+      \sum_{k \neq -1}
+      \beta_k
+      \bigl(
+      \text{HighGap}_p \times \mathbf{1}[\text{event\_time}_{pt}=k]
+      \bigr)
+      + \delta_p + \lambda_t + \varepsilon_{pt}
+    \end{equation*}
+    \end{block}
+  
+    \vspace{0.2cm}
+  
+    \centering
+    \begin{columns}[T,onlytextwidth]
+      \begin{column}{0.49\textwidth}
+        \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_customs_value.png}
+        \centering
+        {\scriptsize Value event study}
+      \end{column}
+      \begin{column}{0.49\textwidth}
+        \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_first_unit_qty.png}
+        \centering
+        {\scriptsize Quantity event study}
+      \end{column}
+    \end{columns}
 \end{frame}
 
 % add notes to talk during presentation (intuition wise) 
 
 \begin{frame}{Event Study: Unit Value (Price Proxy)}
-  \centering
-  \includegraphics[height=0.62\textheight,keepaspectratio]{../analysis/results/figures/event_study/event_study_ln_unit_value.png}
+    \small
+    \begin{block}{Continuous event-study specification}
+      \begin{equation*}
+        Y_{pt}
+        =
+        \sum_t
+        \beta_t
+        \bigl(
+        \text{NTRGap}_p \times \mathbf{1}[\text{time}=t]
+        \bigr)
+        + \delta_p + \lambda_t + \varepsilon_{pt}
+      \end{equation*}
+    \end{block}
 
-  \vspace{0.2cm}
-  \scriptsize
-  Continuous-treatment pre-trend test for unit value: $p \approx 0.081$ (marginal).
+    \vspace{0.1cm}
+
+    \centering
+    \vbox{
+        \includegraphics[height=0.55\textheight,keepaspectratio]{../analysis/results/figures/event_study/event_study_ln_unit_value.png}
+
+        \vspace{0.2em} % tiny space between figure and caption
+        {\scriptsize Continuous-treatment pre-trend test for unit value: $p \approx 0.081$ (marginal).}
+    }
 \end{frame}
 
 \begin{frame}{Takeaways and Next Steps}
