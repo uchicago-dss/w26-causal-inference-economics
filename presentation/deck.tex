@@ -1,0 +1,277 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{Madrid}
+\usecolortheme{dolphin}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\title[WTO/PNTR and U.S. Imports]{WTO Accession, PNTR, and U.S. Import Quantities and Prices}
+\subtitle{}
+\author{Vincent Zheng, Felix Yu, Aryan Goel}
+% \institute{University of Chicago}
+\date{March 3, 2026}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+% Speaker notes: We're presenting our work on how we are trying to quantify the effect of granting of permanent normal trade relations to China on the quantity and prices of imports to the U.S.
+
+
+\begin{frame}{Outline}
+  \small
+  \begin{itemize}
+    \item Background and research question
+    \item Data and empirical strategy
+    \item Current results and robustness
+    \item Next steps
+  \end{itemize}
+\end{frame}
+% Speaker notes: I'll cover the background and our research question, then walk through how we identify the effect. 
+% Vincent/Felix will take over for the data, results, and next steps
+
+
+\begin{frame}{Background: U.S.--China Trade Relations}
+  \small
+  \begin{itemize}
+    \item \textbf{1980}: U.S.\ grants Communist China low tariff rates (MFN status) for the first time, but as a requires annual renewal reflecting Cold War era distrust.
+    \item \textbf{1980s}: Renewals are routine. China's share of U.S.\ imports is small.
+    \item \textbf{1989}: Tiananmen Square crackdown makes renewal politically contentious. Congress begins using the annual vote as leverage on human rights and Taiwan.
+    \item \textbf{1990s}: Legislation to block China's NTR is introduced every year from 1989--1999. Yet U.S.\ imports from China keep growing: from \$51.5B (1996) to \$102B (2001).
+  \end{itemize}
+\end{frame}
+\iffalse
+  In 1980, the U.S. first gave China low tariff rates, but because China was a communist, state-controlled economy, U.S. law required the president to renew that status every single year
+  — this was a Cold War–era provision designed for nonmarket economies like the Soviet Union and China.
+  Through the 1980s, these renewals were basically automatic. But after Tiananmen Square in 1989,
+  Congress started using the annual vote to pressure China on human rights, Taiwan, and arms sales.
+  Every year from 1989 to 1999, someone tried to block renewal.
+  And yet, during this same period, U.S. imports from China nearly doubled. 
+  So you had this growing tension: China is becoming one of our biggest trade partners, 
+  but its access to low tariffs depends on a contested political vote every year. 
+  That's the uncertainty at the heart of our study."
+\fi
+
+\begin{frame}{Policy Timeline}
+  \small
+  \begin{itemize}
+    \item \textbf{Pre-2001}: China receives low tariff rates (NTR) each year, but Congress must vote to renew. If renewal fails, tariffs revert to Smoot-Hawley rates from 1930 (an average jump from 4\% to 37\%).
+    \item \textbf{October 2000}: Congress passes the U.S.--China Relations Act, granting China \textbf{Permanent Normal Trade Relations (PNTR)}, conditional on WTO accession.
+    \item \textbf{December 2001}: China officially joins the WTO.
+    \item \textbf{January 2002}: Permanent low tariffs take effect. The annual renewal process is eliminated.
+  \end{itemize}
+
+  \vspace{0.3cm}
+  \begin{block}{Critical insight}
+    The actual tariff rates mostly \textbf{did not change}: China was already receiving the low NTR rate every year. What changed was the \textbf{permanent elimination of uncertainty} about whether those low rates would continue.
+  \end{block}
+\end{frame}
+\iffalse
+  Here's the timeline of how that uncertainty got resolved.
+  Before 2001, if Congress didn't renew China's low tariff status, 
+  tariffs would have automatically reverted to rates from the 1930s Smoot-Hawley Act
+    — that's an average jump from about 4 percent to 37 percent. That's enormous.
+  In October 2000, Congress passed the U.S.–China Relations Act granting permanent normal trade relations, 
+  but it was conditional on China actually joining the WTO. China joined in December 2001, 
+  and permanent low tariffs took effect January 2002.
+  The critical insight — and this is what drives our entire research design
+  — is that the actual tariff rates mostly did not change. 
+  China was already getting the low rate every year. 
+  What changed was that the uncertainty disappeared permanently.
+    And that uncertainty affected some products much more than others, 
+    which is what we exploit in our identification strategy.
+\fi
+
+\begin{frame}{}
+  \begin{block}{Research question}
+    How did the resolution of U.S. trade-policy uncertainty around China starting in 2002 affect:
+    \begin{itemize}
+      \item the volume of imports from China into the U.S., and
+      \item the prices U.S.\ buyers paid for Chinese imports?
+    \end{itemize}
+  \end{block}
+
+\end{frame}
+% Speaker Notes: did removing that tariff uncertainty cause U.S. imports from China to increase? 
+% And did it affect the prices American buyers paid?
+% We look at both quantities and prices separately.
+
+
+
+\begin{frame}{Identification Intuition}
+  \vspace{0.3cm}
+  \textbf{Why did uncertainty matter differently across products?}
+  \begin{itemize}
+    \item Every product had two legislated tariff rates: a low NTR rate and a high non-NTR rate.
+    \item The \textbf{NTR gap} = non-NTR rate $-$ NTR rate measures how much a product's tariff \emph{would have jumped} if Congress didn't renew.
+    \item Products with large gaps faced more risk $\rightarrow$ importers could be heavily impacted.
+    \item Products with small gaps faced less risk $\rightarrow$ less impact by the annual vote.
+  \end{itemize}
+\end{frame}
+\iffalse
+  Speaker notes: Before 2001, Congress renewed China's low tariffs annually.
+  In 2000, PNTR was granted. In January 2002, WTO accession made it permanent, so now the low tariffs were guaranteed to continue indefinitely.
+  Now, the uncertainty wasn't equal across products. Every product has two tariff rates written into law —
+  the low NTR rate and the high non-NTR rate from 1930. The gap between these rates tells us how exposed each product was.
+  A product with a 45 percentage point gap faced serious risk
+  — importers might hold back on long-term contracts. A product with a 3 percentage point gap had almost nothing to worry about. When the uncertainty was removed, we'd expect the high-gap products to respond the most."
+\fi
+
+\begin{frame}{Identification Strategy: Difference-in-Differences}
+  \small
+  \begin{block}{Core idea}
+    Compare import growth for \textbf{high-gap} products (more exposed to uncertainty) vs.\ \textbf{low-gap} products (less exposed), before and after WTO entry.
+  \end{block}
+
+  % \vspace{0.2cm}
+  % \textbf{Why this works:}
+  % \begin{itemize}
+  %   \item Low-gap products serve as a \textbf{control group}: because, while they were still affected, they had a small stake from the policy change.
+  %   \item Any ``extra'' import growth in high-gap products after 2002, beyond what low-gap products experienced, can be attributed to the removal of tariff uncertainty.
+  % \end{itemize}
+
+
+  % edit this slide te more explicit about the treatment and control groups and that was assume that only difference between the treatment and control group (after our controls) is the policy change
+  \vspace{0.2cm}
+  \textbf{Treatment exposure (measured in 1999, before WTO negotiations):}
+  \begin{equation*}
+      \text{gap\_pre}_p = (\text{non-NTR tariff})_p - (\text{NTR tariff})_p
+  \end{equation*}
+
+  Products above the median gap $\rightarrow$ ``high-gap'' (treatment); below $\rightarrow$ ``low-gap'' (control).
+\end{frame}
+\iffalse
+  Speaker notes: Before 2001, Congress renewed China's low tariffs annually.
+  In 2000, PNTR was granted. In January 2002, WTO accession made it permanent.
+  Now, the uncertainty wasn't equal across products. Every product has two tariff rates written into law —
+  the low NTR rate and the high non-NTR rate from 1930. The gap between these rates tells us how exposed each product was.
+  A product with a 45 percentage point gap faced serious risk
+  — importers might hold back on long-term contracts. A product with a 3 percentage point gap had almost nothing to worry about. When the uncertainty was removed, we'd expect the high-gap products to respond the most."
+\fi
+
+\begin{frame}{Data and Sample}
+  \small
+  \textbf{Data sources}
+  \begin{itemize}
+    \item USITC monthly imports by product and HTS.
+    \item Tariff schedule information used to construct product-level \texttt{gap\_pre}.
+  \end{itemize}
+
+  \textbf{Panel and outcomes}
+  \begin{itemize}
+    \item Product-month panel .
+    \item Outcomes: \texttt{ln\_customs\_value}, \texttt{ln\_first\_unit\_qty}, \texttt{ln\_unit\_value}.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Baseline Specification}
+  \small
+  \begin{block}{Two-way FE DiD}
+    \begin{equation*}
+      Y_{pt} = \beta\,(\text{HighGap}_p \times \text{Post}_t) + \delta_p + \lambda_t + \varepsilon_{pt}
+    \end{equation*}
+  \end{block}
+
+  \begin{itemize}
+    \item $Y_{pt}$: log import value, log quantity, or log unit value.
+    \item $\delta_p$: product fixed effects.
+    \item $\lambda_t$: time fixed effects.
+    \item SEs clustered at product level.
+  \end{itemize}
+
+  % \vspace{0.2cm}
+  % \textbf{Continuous variant}
+  % \begin{equation*}
+  %   Y_{pt} = \theta\,(\text{gap\_pre}_p \times \text{Post}_t) + \delta_p + \lambda_t + \varepsilon_{pt}
+  % \end{equation*}
+  % add after if we have time 
+\end{frame}
+
+\begin{frame}{Main DiD Results (Current Outputs)}
+  \small
+  \textbf{Binary treatment (\texttt{HighGap x Post}) with product and date FE}
+  \begin{itemize}
+    \item \texttt{ln\_customs\_value}: $\hat\beta \approx 0.121$ (s.e. 0.031), positive and significant.
+    \item \texttt{ln\_first\it\_qty}: $\hat\beta \approx 0.145$ (s.e. 0.036), positive and significant.
+    \item \texttt{ln\_unit\_value}: $\hat\beta \approx -0.024$ (s.e. 0.017), negative but not strongly significant in FE spec.% explain why this might be (noisy proxy for price)
+          % explain why these numbers make sense intuitively
+
+  \end{itemize}
+  % check numbers
+
+  \vspace{0.2cm}
+  \textbf{Interpretation}
+  \begin{itemize}
+    \item High-gap products show stronger post-policy growth in value and quantity.
+    \item Price effects are weaker in the binary split and clearer in continuous treatment.
+  \end{itemize}
+\end{frame}
+
+
+% \begin{frame}{Continuous-Treatment Results}
+%   \small
+%   From \texttt{did\_continuous\_gap\_pre\_post\_effects.csv}:
+%   \begin{itemize}
+%     \item Value (\texttt{ln\_customs\_value}): $\hat\theta = 0.122$ (s.e. 0.134).
+%     \item Quantity (\texttt{ln\_first\_unit\_qty}): $\hat\theta = -0.061$ (s.e. 0.130).
+%     \item Unit value (\texttt{ln\_unit\_value}): $\hat\theta = -0.131$ (s.e. 0.032), strong negative effect.
+%   \end{itemize}
+
+%   \vspace{0.2cm}
+%   \begin{block}{Reading}
+%     Higher tariff-jump exposure is associated with stronger post-policy price declines, consistent with lower import prices in more exposed products.
+%   \end{block}
+% \end{frame}
+
+\begin{frame}{Event Study: Value and Quantity}
+  \centering
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.49\textwidth}
+      \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_customs_value.png}
+      \vspace{0.1cm}
+      \scriptsize Value event study
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_first_unit_qty.png}
+      \vspace{0.1cm}
+      \scriptsize Quantity event study
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% add notes to talk during presentation (intuition wise) 
+
+\begin{frame}{Event Study: Unit Value (Price Proxy)}
+  \centering
+  \includegraphics[height=0.62\textheight,keepaspectratio]{../analysis/results/figures/event_study/event_study_ln_unit_value.png}
+
+  \vspace{0.2cm}
+  \scriptsize
+  Continuous-treatment pre-trend test for unit value: $p \approx 0.081$ (marginal).
+\end{frame}
+
+\begin{frame}{Takeaways and Next Steps}
+  \small
+  \textbf{Takeaways}
+  \begin{itemize}
+    \item Evidence supports a post-policy increase in import value and quantity for high-gap products.  \end{itemize}
+
+  \textbf{Next steps}
+  \begin{itemize}
+    \item empty
+          % written by Vincent
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \centering
+  \Large Questions
+\end{frame}
+
+\end{document}
