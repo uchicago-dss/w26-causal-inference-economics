@@ -57,6 +57,24 @@ df_did_common <- df %>%
 
 cat("Rows in common DiD sample (all outcomes observed):", nrow(df_did_common), "\n")
 cat("Unique products in common DiD sample:", n_distinct(df_did_common$product), "\n")
+
+save_ladder_summary <- function(models, outcome_label, out_path) {
+  model_names <- names(models)
+  term_name <- "highgap:post"
+  rows <- lapply(seq_along(models), function(i) {
+    model <- models[[i]]
+    tibble(
+      outcome = outcome_label,
+      spec = model_names[i],
+      coef_highgap_post = unname(coef(model)[term_name]),
+      se_highgap_post = unname(se(model)[term_name]),
+      n_obs = nobs(model)
+    )
+  })
+  out_tbl <- bind_rows(rows)
+  write_csv(out_tbl, out_path, na = "")
+  cat("Saved", out_path, "\n")
+}
 ```
 
 ```{r did-ladder-customs}
@@ -80,6 +98,18 @@ capture.output(
   file = out_customs
 )
 cat("Saved", out_customs, "\n")
+
+save_ladder_summary(
+  models = list(
+    m1 = m1_customs,
+    m2 = m2_customs,
+    m3 = m3_customs,
+    m4 = m4_customs,
+    m5 = m5_customs
+  ),
+  outcome_label = "ln_customs_value",
+  out_path = file.path(tables_dir, "did_ladder_ln_customs_value_slide.csv")
+)
 ```
 
 ```{r did-ladder-quantity}
@@ -103,6 +133,18 @@ capture.output(
   file = out_qty
 )
 cat("Saved", out_qty, "\n")
+
+save_ladder_summary(
+  models = list(
+    m1 = m1_qty,
+    m2 = m2_qty,
+    m3 = m3_qty,
+    m4 = m4_qty,
+    m5 = m5_qty
+  ),
+  outcome_label = "ln_first_unit_qty",
+  out_path = file.path(tables_dir, "did_ladder_ln_first_unit_qty_slide.csv")
+)
 ```
 
 ```{r did-ladder-unit-value}
@@ -126,6 +168,18 @@ capture.output(
   file = out_uv
 )
 cat("Saved", out_uv, "\n")
+
+save_ladder_summary(
+  models = list(
+    m1 = m1_uv,
+    m2 = m2_uv,
+    m3 = m3_uv,
+    m4 = m4_uv,
+    m5 = m5_uv
+  ),
+  outcome_label = "ln_unit_value",
+  out_path = file.path(tables_dir, "did_ladder_ln_unit_value_slide.csv")
+)
 ```
 
 ## Continuous-Treatment DiD (Gap Intensity)

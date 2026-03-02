@@ -191,7 +191,7 @@
         \item $Y_{pt}$: log import value, log quantity, or log unit value.
         \item $\delta_p$: product fixed effects.
         \item $\lambda_t$: time fixed effects.
-        \item $\epsilon_{pt}$: error term.
+        \item $\varepsilon_{pt}$: error term.
       \end{itemize}
     \end{column}
 
@@ -203,28 +203,6 @@
   \end{columns}
 
 \end{frame}
-
-\begin{frame}{Main DiD Results (Current Outputs)}
-  \small
-  \textbf{Binary treatment (\texttt{HighGap x Post}) with product and date FE}
-  \begin{itemize}
-    \item \texttt{ln\_customs\_value}: $\hat\beta \approx 0.121$ (s.e. 0.031), positive and significant.
-    \item \texttt{ln\_first\it\_qty}: $\hat\beta \approx 0.145$ (s.e. 0.036), positive and significant.
-    \item \texttt{ln\_unit\_value}: $\hat\beta \approx -0.024$ (s.e. 0.017), negative but not strongly significant in FE spec.% explain why this might be (noisy proxy for price)
-          % explain why these numbers make sense intuitively
-
-  \end{itemize}
-  % check numbers
-
-  \vspace{0.2cm}
-  \textbf{Interpretation}
-  \begin{itemize}
-    \item High-gap products show stronger post-policy growth in value and quantity.
-    \item Price effects are weaker in the binary split and clearer in continuous treatment.
-  \end{itemize}
-\end{frame}
-
-% 
 % have 2 lines, control treatment
 % after pntr, we see a jump in our treatment group
 % our fixed effect lambda is supposed to capture the effect of time for control group, like a global event that affeects all products
@@ -233,20 +211,59 @@
 % lastly we take the difference between the solid red line and dashed red line to get our treatment effect
 
 
-% \begin{frame}{Continuous-Treatment Results}
-%   \small
-%   From \texttt{did\_continuous\_gap\_pre\_post\_effects.csv}:
-%   \begin{itemize}
-%     \item Value (\texttt{ln\_customs\_value}): $\hat\theta = 0.122$ (s.e. 0.134).
-%     \item Quantity (\texttt{ln\_first\_unit\_qty}): $\hat\theta = -0.061$ (s.e. 0.130).
-%     \item Unit value (\texttt{ln\_unit\_value}): $\hat\theta = -0.131$ (s.e. 0.032), strong negative effect.
-%   \end{itemize}
+\begin{frame}{DiD Ladder Regression Tables}
+  \fontsize{10}{12}\selectfont
+  \centering
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.33\textwidth}
+      \centering \textbf{\texttt{ln\_customs\_value}}\\[0.2em]
+      \begin{tabular}{lcc}
+        \toprule
+        Spec & $\hat\beta$ & s.e.     \\
+        \midrule
+        m1   & 0.1109**    & (0.0404) \\
+        m2   & 0.1251***   & (0.0306) \\
+        m3   & 0.1124**    & (0.0406) \\
+        m4   & 0.1211***   & (0.0308) \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.33\textwidth}
+      \centering \textbf{\texttt{ln\_first\_unit\_qty}}\\[0.2em]
+      \begin{tabular}{lcc}
+        \toprule
+        Spec & $\hat\beta$ & s.e.     \\
+        \midrule
+        m1   & 0.2037***   & (0.0534) \\
+        m2   & 0.1498***   & (0.0358) \\
+        m3   & 0.2041***   & (0.0536) \\
+        m4   & 0.1447***   & (0.0361) \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.33\textwidth}
+      \centering \textbf{\texttt{ln\_unit\_value}}\\[0.2em]
+      \begin{tabular}{lcc}
+        \toprule
+        Spec & $\hat\beta$ & s.e.     \\
+        \midrule
+        m1   & -0.0926**   & (0.0347) \\
+        m2   & -0.0251     & (0.0165) \\
+        m3   & -0.0916**   & (0.0347) \\
+        m4   & -0.0239     & (0.0165) \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+  \end{columns}
 
-%   \vspace{0.2cm}
-%   \begin{block}{Reading}
-%     Higher tariff-jump exposure is associated with stronger post-policy price declines, consistent with lower import prices in more exposed products.
-%   \end{block}
-% \end{frame}
+  \vspace{1em}
+  \scriptsize
+  \textbf{Specification ladder:}\\
+  m1: no FE\\
+  m2: product FE\\
+  m3: date FE\\
+  m4: product + date FE\\
+\end{frame}
 
 \begin{frame}{Event Study: Value and Quantity}
   \small
@@ -266,7 +283,7 @@
   % we perform an event study to check our regression specification. 
   % if our specification is correct, then our event has an effect starting in 2002, and if we look for an effect (beta) on any pre event date, it should 0 because the event didn't happen back then 
 
-  \vspace{0.2cm}
+  \vspace{-0.3cm}
 
   \centering
   \begin{columns}[T,onlytextwidth]
@@ -298,19 +315,6 @@
 % % different quality of products 
 
 
-\begin{frame}{Event Study: Unit Value (Price Proxy)}
-
-  \vspace{0.1cm}
-
-  \centering
-  \vbox{
-    \includegraphics[height=0.55\textheight,keepaspectratio]{../analysis/results/figures/event_study/event_study_ln_unit_value.png}
-
-    \vspace{0.2em} % tiny space between figure and caption
-    {\scriptsize Continuous-treatment pre-trend test for unit value: $p \approx 0.081$ (marginal).}
-  }
-\end{frame}
-
 % this the same test but for unit value (what we're trying to use to represent the price of that product) and again it's noisy for the same reasons 
 
 % if we address one of the problems by making the treatment continuous instead of the median as a threshold we see a much clearer negative effect on unit value after 2002. this makes sense because lower tariffs from china should lead to cheaper goods (like today). also implies increase in quantity is more than the increase in value. 
@@ -334,3 +338,18 @@
 \end{frame}
 
 \end{document}
+
+% \begin{frame}{Continuous-Treatment Results}
+%   \small
+%   From \texttt{did\_continuous\_gap\_pre\_post\_effects.csv}:
+%   \begin{itemize}
+%     \item Value (\texttt{ln\_customs\_value}): $\hat\theta = 0.122$ (s.e. 0.134).
+%     \item Quantity (\texttt{ln\_first\_unit\_qty}): $\hat\theta = -0.061$ (s.e. 0.130).
+%     \item Unit value (\texttt{ln\_unit\_value}): $\hat\theta = -0.131$ (s.e. 0.032), strong negative effect.
+%   \end{itemize}
+
+%   \vspace{0.2cm}
+%   \begin{block}{Reading}
+%     Higher tariff-jump exposure is associated with stronger post-policy price declines, consistent with lower import prices in more exposed products.
+%   \end{block}
+% \end{frame}
