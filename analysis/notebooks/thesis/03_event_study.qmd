@@ -26,6 +26,9 @@ if (is.na(did_panel_path)) {
 figures_dir <- "../../results/figures/event_study"
 dir.create(figures_dir, recursive = TRUE, showWarnings = FALSE)
 
+seasonality_dir <- "../../results/figures/seasonality"
+dir.create(seasonality_dir, recursive = TRUE, showWarnings = FALSE)
+
 tables_dir <- "../../results/tables/event_study"
 dir.create(tables_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -95,6 +98,67 @@ plot_event_study_year <- function(model_obj, output_png, y_label, win_pre, win_p
   abline(h = 0, lty = 2, col = "red")
   dev.off()
 }
+
+plot_event_study_year_guides <- function(model_obj, output_png, y_label, win_pre, win_post, term_name = "highgap", base_year = 2002) {
+  b <- coef(model_obj)
+  s <- se(model_obj)
+
+  coef_pattern <- paste0("^event_time::[-]?[0-9]+:", term_name, "$")
+  parse_pattern <- paste0("^event_time::(-?[0-9]+):", term_name, "$")
+
+  keep <- grepl(coef_pattern, names(b))
+  if (!any(keep)) {
+    stop("No event-study coefficients matched expected naming pattern.")
+  }
+
+  event_time <- as.integer(sub(parse_pattern, "\\1", names(b)[keep]))
+  est <- as.numeric(b[keep])
+  stderr <- as.numeric(s[keep])
+  ci_low <- est - 1.96 * stderr
+  ci_high <- est + 1.96 * stderr
+
+  ord <- order(event_time)
+  event_time <- event_time[ord]
+  est <- est[ord]
+  ci_low <- ci_low[ord]
+  ci_high <- ci_high[ord]
+
+  tick_min <- floor(min(event_time) / 12) * 12
+  tick_max <- ceiling(max(event_time) / 12) * 12
+  tick_at <- seq(tick_min, tick_max, by = 12)
+  tick_labels <- base_year + tick_at / 12
+
+  png(output_png, width = 1000, height = 700)
+  plot(
+    event_time, est,
+    type = "n",
+    xlab = "Year",
+    ylab = y_label,
+    xaxt = "n",
+    ylim = range(c(ci_low, ci_high, 0), na.rm = TRUE)
+  )
+
+  usr <- par("usr")
+  y_bottom <- usr[3]
+  y_top <- usr[4]
+
+  if (length(tick_at) >= 2) {
+    for (i in seq_len(length(tick_at) - 1)) {
+      if (i %% 2 == 0) {
+        rect(tick_at[i], y_bottom, tick_at[i + 1], y_top, col = "gray95", border = NA)
+      }
+    }
+  }
+  abline(v = tick_at, col = "gray85", lwd = 0.8)
+
+  segments(event_time, ci_low, event_time, ci_high, col = "gray40")
+  points(event_time, est, pch = 16, col = "black")
+  lines(event_time, est, col = "black")
+  axis(1, at = tick_at, labels = tick_labels)
+  abline(h = 0, lty = 2, col = "red")
+  mtext("Shaded bands and vertical lines mark 12-month intervals", side = 3, line = 0.2, cex = 0.9, col = "gray30")
+  dev.off()
+}
 ```
 
 ```{r event-study-customs}
@@ -122,6 +186,16 @@ plot_event_study_year(
   win_post = WIN_POST
 )
 cat("Saved", out_customs_base, "\n")
+
+out_customs_base_guides <- file.path(seasonality_dir, "event_study_ln_customs_value_12mo_guides.png")
+plot_event_study_year_guides(
+  model_obj = m_es_customs_base,
+  output_png = out_customs_base_guides,
+  y_label = "Effect on ln(1 + customs value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_customs_base_guides, "\n")
 ```
 
 ```{r event-study-quantity}
@@ -149,6 +223,16 @@ plot_event_study_year(
   win_post = WIN_POST
 )
 cat("Saved", out_qty_base, "\n")
+
+out_qty_base_guides <- file.path(seasonality_dir, "event_study_ln_first_unit_qty_12mo_guides.png")
+plot_event_study_year_guides(
+  model_obj = m_es_qty_base,
+  output_png = out_qty_base_guides,
+  y_label = "Effect on ln(1 + first unit quantity)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_qty_base_guides, "\n")
 ```
 
 ```{r event-study-unit-value}
@@ -176,6 +260,16 @@ plot_event_study_year(
   win_post = WIN_POST
 )
 cat("Saved", out_uv_base, "\n")
+
+out_uv_base_guides <- file.path(seasonality_dir, "event_study_ln_unit_value_12mo_guides.png")
+plot_event_study_year_guides(
+  model_obj = m_es_uv_base,
+  output_png = out_uv_base_guides,
+  y_label = "Effect on ln(unit value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST
+)
+cat("Saved", out_uv_base_guides, "\n")
 ```
 
 ## Continuous-Treatment Event Study (Gap Intensity)
@@ -221,6 +315,17 @@ plot_event_study_year(
   term_name = "gap_pre"
 )
 cat("Saved", out_customs_cont, "\n")
+
+out_customs_cont_guides <- file.path(seasonality_dir, "event_study_continuous_ln_customs_value_12mo_guides.png")
+plot_event_study_year_guides(
+  model_obj = m_es_customs_cont,
+  output_png = out_customs_cont_guides,
+  y_label = "Effect per +1 NTR gap on ln(1 + customs value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_customs_cont_guides, "\n")
 ```
 
 ```{r event-study-continuous-quantity}
@@ -251,6 +356,17 @@ plot_event_study_year(
   term_name = "gap_pre"
 )
 cat("Saved", out_qty_cont, "\n")
+
+out_qty_cont_guides <- file.path(seasonality_dir, "event_study_continuous_ln_first_unit_qty_12mo_guides.png")
+plot_event_study_year_guides(
+  model_obj = m_es_qty_cont,
+  output_png = out_qty_cont_guides,
+  y_label = "Effect per +1 NTR gap on ln(1 + first unit quantity)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_qty_cont_guides, "\n")
 ```
 
 ```{r event-study-continuous-unit-value}
@@ -281,6 +397,17 @@ plot_event_study_year(
   term_name = "gap_pre"
 )
 cat("Saved", out_uv_cont, "\n")
+
+out_uv_cont_guides <- file.path(seasonality_dir, "event_study_continuous_ln_unit_value_12mo_guides.png")
+plot_event_study_year_guides(
+  model_obj = m_es_uv_cont,
+  output_png = out_uv_cont_guides,
+  y_label = "Effect per +1 NTR gap on ln(unit value)",
+  win_pre = WIN_PRE,
+  win_post = WIN_POST,
+  term_name = "gap_pre"
+)
+cat("Saved", out_uv_cont_guides, "\n")
 ```
 
 ```{r event-study-continuous-save}
