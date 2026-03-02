@@ -158,48 +158,50 @@
   — importers might hold back on long-term contracts. A product with a 3 percentage point gap had almost nothing to worry about. When the uncertainty was removed, we'd expect the high-gap products to respond the most."
 \fi
 
-\begin{frame}{Data and Sample}
+\begin{frame}{Data}
   \small
   \textbf{Data sources}
   \begin{itemize}
     \item USITC monthly imports by product and HTS.
     \item Tariff schedule information used to construct product-level \texttt{gap\_pre}.
   \end{itemize}
-
-  \textbf{Panel and outcomes}
-  \begin{itemize}
-    \item Product-month panel .
-    \item Outcomes: \texttt{ln\_customs\_value}, \texttt{ln\_first\_unit\_qty}, \texttt{ln\_unit\_value}.
-  \end{itemize}
 \end{frame}
 
+% our raw data contains customs value and quantity information on import products from China across months US international trade commission.
+
+% we also have tariff schedule information that we use to determine the tariff gap between normal and non-normal trade relations.
+
 \begin{frame}{Baseline Specification}
-    \small
-  
-    \begin{block}{Two-way FE DiD}
-      \begin{equation*}
-        Y_{pt} = \beta\,(\text{HighGap}_p \times \text{Post}_t) + \delta_p + \lambda_t + \varepsilon_{pt}
-      \end{equation*}
-    \end{block}
-  
-    \begin{columns}
-      % ---- Left column: text ----
-      \begin{column}{0.6\textwidth}
-        \begin{itemize}
-          \item $Y_{pt}$: log import value, log quantity, or log unit value.
-          \item $\delta_p$: product fixed effects.
-          \item $\lambda_t$: time fixed effects.
-          \item SEs clustered at product level.
-        \end{itemize}
-      \end{column}
-  
-      % ---- Right column: figure ----
-      \begin{column}{0.4\textwidth}
-        \vspace{0.5em}
-        \includegraphics[width=\linewidth]{did_visual.pdf}
-      \end{column}
-    \end{columns}
-  
+  \small
+
+  \begin{block}{Two-way FE DiD}
+    \begin{equation*}
+      Y_{pt} = \beta\,(\text{HighGap}_p \times \text{Post}_t) + \delta_p + \lambda_t + \varepsilon_{pt}
+    \end{equation*}
+  \end{block}
+
+  % this regression that helps us estimate the difference between the treatment and control group, represented by beta
+
+  % we have our oucome variable ... to explain the intuition behind this fixed effects...
+
+  \begin{columns}
+    % ---- Left column: text ----
+    \begin{column}{0.6\textwidth}
+      \begin{itemize}
+        \item $Y_{pt}$: log import value, log quantity, or log unit value.
+        \item $\delta_p$: product fixed effects.
+        \item $\lambda_t$: time fixed effects.
+        \item $\epsilon_{pt}$: error term.
+      \end{itemize}
+    \end{column}
+
+    % ---- Right column: figure ----
+    \begin{column}{0.4\textwidth}
+      \vspace{0.5em}
+      \includegraphics[width=\linewidth]{did_visual.pdf}
+    \end{column}
+  \end{columns}
+
 \end{frame}
 
 \begin{frame}{Main DiD Results (Current Outputs)}
@@ -222,6 +224,14 @@
   \end{itemize}
 \end{frame}
 
+% 
+% have 2 lines, control treatment
+% after pntr, we see a jump in our treatment group
+% our fixed effect lambda is supposed to capture the effect of time for control group, like a global event that affeects all products
+% next we have our delta which represents the product fixed effect which captures difference between products such as a toy vs computer
+% the dashed red line represents our treatment if it didn't receive treatment (policy change has no tariff impact)
+% lastly we take the difference between the solid red line and dashed red line to get our treatment effect
+
 
 % \begin{frame}{Continuous-Treatment Results}
 %   \small
@@ -239,8 +249,8 @@
 % \end{frame}
 
 \begin{frame}{Event Study: Value and Quantity}
-    \small
-    \begin{block}{Event-study specification}
+  \small
+  \begin{block}{Event-study specification}
     \begin{equation*}
       Y_{pt}
       =
@@ -251,52 +261,59 @@
       \bigr)
       + \delta_p + \lambda_t + \varepsilon_{pt}
     \end{equation*}
-    \end{block}
-  
-    \vspace{0.2cm}
-  
-    \centering
-    \begin{columns}[T,onlytextwidth]
-      \begin{column}{0.49\textwidth}
-        \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_customs_value.png}
-        \centering
-        {\scriptsize Value event study}
-      \end{column}
-      \begin{column}{0.49\textwidth}
-        \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_first_unit_qty.png}
-        \centering
-        {\scriptsize Quantity event study}
-      \end{column}
-    \end{columns}
+  \end{block}
+
+  % we perform an event study to check our regression specification. 
+  % if our specification is correct, then our event has an effect starting in 2002, and if we look for an effect (beta) on any pre event date, it should 0 because the event didn't happen back then 
+
+  \vspace{0.2cm}
+
+  \centering
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.49\textwidth}
+      \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_customs_value.png}
+      \centering
+      {\scriptsize Value event study}
+    \end{column}
+    \begin{column}{0.49\textwidth}
+      \includegraphics[width=\linewidth]{../analysis/results/figures/event_study/event_study_ln_first_unit_qty.png}
+      \centering
+      {\scriptsize Quantity event study}
+    \end{column}
+  \end{columns}
 \end{frame}
 
-% add notes to talk during presentation (intuition wise) 
+% when talking ab y axis, it is our beta
+
+% y axis is the effect of policy change beta on customs value and you can see the effect trends upward 
+% the gray bars are the 95% confidence interval
+% despite the noise, pre 2002 seems to be closer to 0 compared to post 2002,
+% since customs value represents the total value of imports, it makes sense that opening up to trade to china will encourage firms to import more 
+
+% the second graph is same for quantity, however in this case we see a general decrease in effect on quantity leading up to 2002 and after. this obviously doesn't really make sense because we see way more imports from china today. 
+
+% reasons: 
+% above and below median, it doesn't make senes that a product right below median is control while a product right above is treatment
+% lacking more controls for other factors such as seasonality, product heterogenity
+% % different quality of products 
+
 
 \begin{frame}{Event Study: Unit Value (Price Proxy)}
-    \small
-    \begin{block}{Continuous event-study specification}
-      \begin{equation*}
-        Y_{pt}
-        =
-        \sum_t
-        \beta_t
-        \bigl(
-        \text{NTRGap}_p \times \mathbf{1}[\text{time}=t]
-        \bigr)
-        + \delta_p + \lambda_t + \varepsilon_{pt}
-      \end{equation*}
-    \end{block}
 
-    \vspace{0.1cm}
+  \vspace{0.1cm}
 
-    \centering
-    \vbox{
-        \includegraphics[height=0.55\textheight,keepaspectratio]{../analysis/results/figures/event_study/event_study_ln_unit_value.png}
+  \centering
+  \vbox{
+    \includegraphics[height=0.55\textheight,keepaspectratio]{../analysis/results/figures/event_study/event_study_ln_unit_value.png}
 
-        \vspace{0.2em} % tiny space between figure and caption
-        {\scriptsize Continuous-treatment pre-trend test for unit value: $p \approx 0.081$ (marginal).}
-    }
+    \vspace{0.2em} % tiny space between figure and caption
+    {\scriptsize Continuous-treatment pre-trend test for unit value: $p \approx 0.081$ (marginal).}
+  }
 \end{frame}
+
+% this the same test but for unit value (what we're trying to use to represent the price of that product) and again it's noisy for the same reasons 
+
+% if we address one of the problems by making the treatment continuous instead of the median as a threshold we see a much clearer negative effect on unit value after 2002. this makes sense because lower tariffs from china should lead to cheaper goods (like today). also implies increase in quantity is more than the increase in value. 
 
 \begin{frame}{Takeaways and Next Steps}
   \small
