@@ -323,23 +323,33 @@
   \small
   \textbf{Takeaways}
   \begin{itemize}
-    \item Evidence supports a post-policy increase in import value and quantity for high-gap products.  \end{itemize}
+    \item A $10\%$ increase in exposure causes an estimated $100(\exp(\hat\beta\cdot 0.10)-1)\approx 1.3\%$ post-policy decline in "price" (unit value).
+          \begin{itemize}
+            \item At the median exposure ($gap\_pre=0.311$), the implied post-policy decline is $100(\exp(\hat\beta\cdot 0.311)-1)\approx 4.0\%$.
+            \item Interpreted as the effect of removing trade-policy uncertainty on prices
+          \end{itemize}
+  \end{itemize}
 
   \textbf{Next steps}
   \begin{itemize}
-    \item empty
-          % written by Vincent
+    \item Further finetune this parameter by:
+          \begin{itemize}
+            \item seasonality controls
+            \item solve heterogeneity of products issue
+            \item controls for other events that occured
+            \item compare how imports changed for another country in their trade with China
+          \end{itemize}
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Appendix: Continuous Unit Value Event Study (12-month guides)}
+\begin{frame}{Appendix: Seasonality}
   \centering
-  \includegraphics[width=0.95\textwidth]{../analysis/results/figures/seasonality/event_study_continuous_ln_unit_value_12mo_guides.png}
+  \includegraphics[width=0.7\textwidth]{../analysis/results/figures/seasonality/event_study_continuous_ln_unit_value_12mo_guides.png}
 \end{frame}
 
 \begin{frame}
   \centering
-  \Large Questions
+  \Large Questions?
 \end{frame}
 
 \end{document}
@@ -358,3 +368,6 @@
 %     Higher tariff-jump exposure is associated with stronger post-policy price declines, consistent with lower import prices in more exposed products.
 %   \end{block}
 % \end{frame}
+
+
+
