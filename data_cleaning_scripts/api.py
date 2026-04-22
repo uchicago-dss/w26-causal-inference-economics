@@ -46,7 +46,7 @@ def fetch_data_by_hs_chapter(year, hs_chapter, metric_codes, request_timeout):
     Fetch data for a specific year and 2-digit HS chapter (00-99).
     Requests all metrics in a single API call.
     """
-    # HS chapter as 2-digit string (e.g., "01", "85")
+    # HS chapter as 2-digit string (e.g , "01", "85")
     hs_prefix = f"{hs_chapter:02d}"
 
     requestData = {
@@ -290,7 +290,9 @@ def parse_args():
     parser.add_argument(
         "--delay-between-requests", type=float, default=DELAY_BETWEEN_REQUESTS
     )
-    parser.add_argument("--delay-between-years", type=float, default=DELAY_BETWEEN_YEARS)
+    parser.add_argument(
+        "--delay-between-years", type=float, default=DELAY_BETWEEN_YEARS
+    )
     parser.add_argument("--max-retries", type=int, default=MAX_RETRIES)
     parser.add_argument("--retry-base-delay", type=float, default=RETRY_BASE_DELAY)
     parser.add_argument("--request-timeout", type=int, default=REQUEST_TIMEOUT)
@@ -396,7 +398,9 @@ def merge_year_dataframe(year_file, df_new):
     return df_merged, len(df_existing), added_rows
 
 
-def rebuild_combined_from_year_files(output_dir, start_year, end_year, combined_file=None):
+def rebuild_combined_from_year_files(
+    output_dir, start_year, end_year, combined_file=None
+):
     """
     Build a combined CSV from saved per-year files and dedupe exact rows.
     """
@@ -424,7 +428,9 @@ def rebuild_combined_from_year_files(output_dir, start_year, end_year, combined_
             f"No per-year files found in {output_dir} for {start_year}-{end_year}."
         )
 
-    df_combined = pd.concat(frames, ignore_index=True).drop_duplicates(ignore_index=True)
+    df_combined = pd.concat(frames, ignore_index=True).drop_duplicates(
+        ignore_index=True
+    )
 
     if combined_file is None:
         combined_file = os.path.join(
@@ -463,7 +469,9 @@ def main():
     print("=" * 60)
     print("USITC DataWeb API - China Imports 1996-2005")
     print("Breaking down by HS Chapter (00-99) to avoid row limits")
-    print(f"Run range: years {start_year}-{end_year}, chapters {args.hs_chapter_start:02d}-{args.hs_chapter_end:02d}")
+    print(
+        f"Run range: years {start_year}-{end_year}, chapters {args.hs_chapter_start:02d}-{args.hs_chapter_end:02d}"
+    )
     print("=" * 60)
 
     all_data = []
